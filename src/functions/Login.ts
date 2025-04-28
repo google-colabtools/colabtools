@@ -33,33 +33,38 @@ export class Login {
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                if (attempt > 1) {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', `Retrying login attempt ${attempt}/${maxRetries}...`, 'warn');
-                    await this.bot.utils.wait(retryDelay);
-                }
-
                 // Navigate to the Bing login page
-                await page.goto('https://rewards.bing.com/signin', {
-                    timeout: 60000, // 增加超时时间到60秒
-                    waitUntil: 'domcontentloaded'
-                });
+                await page.goto('https://rewards.bing.com/signin')
 
-                await page.waitForLoadState('domcontentloaded').catch(() => { });
-                await this.bot.browser.utils.reloadBadPage(page);
+                await page.waitForLoadState('domcontentloaded').catch(() => { })
+
+                await this.bot.browser.utils.reloadBadPage(page)
 
                 // Check if account is locked
-                await this.checkAccountLocked(page);
+                await this.checkAccountLocked(page)
 
-                const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10_000 })
-                    .then(() => true)
-                    .catch(() => false);
+                const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
 
                 if (!isLoggedIn) {
-                    await this.execLogin(page, email, password);
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged into Microsoft successfully');
+                    await this.execLogin(page, email, password)
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged into Microsoft successfully')
                 } else {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in');
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in')
+
+                    // Check if account is locked
                     await this.checkAccountLocked(page);
+
+                    const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10_000 })
+                        .then(() => true)
+                        .catch(() => false);
+
+                    if (!isLoggedIn) {
+                        await this.execLogin(page, email, password);
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged into Microsoft successfully');
+                    } else {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in');
+                        await this.checkAccountLocked(page);
+                    }
                 }
 
                 // Check if logged in to bing
@@ -118,29 +123,79 @@ export class Login {
     }
 
     private async enterEmail(page: Page, email: string) {
-        const emailPrefilled = await page.waitForSelector('#userDisplayName', { timeout: 2_000 }).catch(() => null)
-        if (emailPrefilled) {
-            this.bot.log(this.bot.isMobile, 'LOGIN', 'Email already prefilled by Microsoft')
-            return
-        }
+        const emailInputSelector = 'input[type="email"]'
 
-        await page.fill('#i0116', email)
-        await page.click('#idSIButton9')
-        this.bot.log(this.bot.isMobile, 'LOGIN', 'Email entered successfully')
+        try {
+            // Wait for email field
+            const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
+            if (!emailField) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found', 'warn')
+                return
+            }
+
+            await this.bot.utils.wait(1000)
+
+            // Check if email is prefilled
+            const emailPrefilled = await page.waitForSelector('#userDisplayName', { timeout: 5000 }).catch(() => null)
+            if (emailPrefilled) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email already prefilled by Microsoft')
+            } else {
+                // Else clear and fill email
+                await page.fill(emailInputSelector, '')
+                await this.bot.utils.wait(500)
+                await page.fill(emailInputSelector, email)
+                await this.bot.utils.wait(1000)
+            }
+
+            const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null)
+            if (nextButton) {
+                await nextButton.click()
+                await this.bot.utils.wait(2000)
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email entered successfully')
+            } else {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after email entry', 'warn')
+            }
+
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'LOGIN', `Email entry failed: ${error}`, 'error')
+        }
     }
 
     private async enterPassword(page: Page, password: string) {
+        const passwordInputSelector = 'input[type="password"]'
+
         try {
-            await page.waitForSelector('#i0118', { state: 'visible', timeout: 2000 })
-            await this.bot.utils.wait(2000)
-            await page.fill('#i0118', password)
-            await page.click('#idSIButton9')
-            this.bot.log(this.bot.isMobile, 'LOGIN', 'Password entered successfully')
-        } catch {
-            this.bot.log(this.bot.isMobile, 'LOGIN', 'Password entry failed or 2FA required')
+            // Wait for password field
+            const passwordField = await page.waitForSelector(passwordInputSelector, { state: 'visible', timeout: 5000 }).catch(() => null)
+            if (!passwordField) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Password field not found, possibly 2FA required', 'warn')
+                await this.handle2FA(page)
+                return
+            }
+
+            await this.bot.utils.wait(1000)
+
+            // Clear and fill password
+            await page.fill(passwordInputSelector, '')
+            await this.bot.utils.wait(500)
+            await page.fill(passwordInputSelector, password)
+            await this.bot.utils.wait(1000)
+
+            const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null)
+            if (nextButton) {
+                await nextButton.click()
+                await this.bot.utils.wait(2000)
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Password entered successfully')
+            } else {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after password entry', 'warn')
+            }
+
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'LOGIN', `Password entry failed: ${error}`, 'error')
             await this.handle2FA(page)
         }
     }
+
 
     private async handle2FA(page: Page) {
         try {
@@ -170,7 +225,7 @@ export class Login {
                 while (true) {
                     const button = await page.waitForSelector('button[aria-describedby="pushNotificationsTitle errorDescription"]', { state: 'visible', timeout: 2000 }).catch(() => null)
                     if (button) {
-                        await this.bot.utils.wait(60_000)
+                        await this.bot.utils.wait(60000)
                         await button.click()
 
                         continue
@@ -180,7 +235,7 @@ export class Login {
                 }
             }
 
-            await page.click('button[aria-describedby="confirmSendTitle"]').catch(() => {})
+            await page.click('button[aria-describedby="confirmSendTitle"]').catch(() => { })
             await this.bot.utils.wait(2000)
             const element = await page.waitForSelector('#displaySign', { state: 'visible', timeout: 2000 })
             return await element.textContent()
@@ -194,7 +249,7 @@ export class Login {
                 this.bot.log(this.bot.isMobile, 'LOGIN', `Press the number ${numberToPress} on your Authenticator app to approve the login`)
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'If you press the wrong number or the "DENY" button, try again in 60 seconds')
 
-                await page.waitForSelector('#i0281', { state: 'detached', timeout: 60_000 })
+                await page.waitForSelector('#i0281', { state: 'detached', timeout: 60000 })
 
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Login successfully approved!')
                 break
@@ -235,7 +290,7 @@ export class Login {
         }
 
         // Wait for login to complete
-        await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10_000 })
+        await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 })
         this.bot.log(this.bot.isMobile, 'LOGIN', 'Successfully logged into the rewards portal')
     }
 
@@ -304,7 +359,7 @@ export class Login {
             currentUrl = new URL(page.url())
             await this.bot.utils.wait(5000)
         }
-       
+
         const body = new URLSearchParams()
         body.append('grant_type', 'authorization_code')
         body.append('client_id', this.clientId)
