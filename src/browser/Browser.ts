@@ -34,7 +34,6 @@ class Browser {
                 '--disable-thorium-dns-config', // 禁用 Thorium DNS 配置
                 '--disable-quic', // 禁用quic连接
                 '--no-first-run', // 跳过首次运行检查
-                '--disable-hardware-acceleration', // 禁用硬件加速
                 '--blink-settings=imagesEnabled=false', // 禁用图片加载
                 '--no-sandbox', // 禁用沙盒模式
                 '--mute-audio', // 禁用音频
