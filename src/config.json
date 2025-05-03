@@ -23,10 +23,10 @@
     "searchSettings": {
         "useGeoLocaleQueries": false,
         "scrollRandomResults": true,
-        "clickRandomResults": false,
+        "clickRandomResults": true,
         "searchDelay": {
             "min": "3min",
-            "max": "4min"
+            "max": "6min"
         },
         "retryMobileSearchAmount": 2
     },
