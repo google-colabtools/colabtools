@@ -35,7 +35,6 @@ export class MicrosoftRewardsBot {
     private pointsInitial: number = 0
 
     private activeWorkers: number
-    private mobileRetryAttempts: number
     private browserFactory: Browser = new Browser(this)
     private accounts: Account[]
     private workers: Workers
@@ -58,7 +57,6 @@ export class MicrosoftRewardsBot {
         }
         this.config = loadConfig()
         this.activeWorkers = this.config.clusters
-        this.mobileRetryAttempts = 0
     }
 
     async initialize() {
@@ -175,6 +173,8 @@ export class MicrosoftRewardsBot {
 
             // Close desktop browser
             await this.browser.func.closeBrowser(browser, account.email)
+            // 清理引用
+            this.homePage = undefined as any;
             return
         }
 
@@ -209,106 +209,121 @@ export class MicrosoftRewardsBot {
 
         // Close desktop browser
         await this.browser.func.closeBrowser(browser, account.email)
+        // 清理引用
+        this.homePage = undefined as any;
         return
     }
 
     // Mobile
     async Mobile(account: Account) {
-        const browser = await this.browserFactory.createBrowser(account.proxy, account.email)
-        this.homePage = await browser.newPage()
+        let retryAttempts = 0;
+        while (true) {
+            const browser = await this.browserFactory.createBrowser(account.proxy, account.email)
+            this.homePage = await browser.newPage()
 
-        log(this.isMobile, 'MAIN', 'Starting browser')
+            log(this.isMobile, 'MAIN', 'Starting browser')
 
-        // Login into MS Rewards, then go to rewards homepage
-        await this.login.login(this.homePage, account.email, account.password)
-        this.accessToken = await this.login.getMobileAccessToken(this.homePage, account.email)
+            // Login into MS Rewards, then go to rewards homepage
+            await this.login.login(this.homePage, account.email, account.password)
+            this.accessToken = await this.login.getMobileAccessToken(this.homePage, account.email)
 
-        await this.browser.func.goHome(this.homePage)
+            await this.browser.func.goHome(this.homePage)
 
-        const data = await this.browser.func.getDashboardData()
+            const data = await this.browser.func.getDashboardData()
 
-        const browserEnarablePoints = await this.browser.func.getBrowserEarnablePoints()
-        const appEarnablePoints = await this.browser.func.getAppEarnablePoints(this.accessToken)
+            const browserEnarablePoints = await this.browser.func.getBrowserEarnablePoints()
+            const appEarnablePoints = await this.browser.func.getAppEarnablePoints(this.accessToken)
 
-        this.pointsCanCollect = browserEnarablePoints.mobileSearchPoints + appEarnablePoints.totalEarnablePoints
+            this.pointsCanCollect = browserEnarablePoints.mobileSearchPoints + appEarnablePoints.totalEarnablePoints
 
-        log(this.isMobile, 'MAIN-POINTS', `You can earn ${this.pointsCanCollect} points today (Browser: ${browserEnarablePoints.mobileSearchPoints} points, App: ${appEarnablePoints.totalEarnablePoints} points)`)
+            log(this.isMobile, 'MAIN-POINTS', `You can earn ${this.pointsCanCollect} points today (Browser: ${browserEnarablePoints.mobileSearchPoints} points, App: ${appEarnablePoints.totalEarnablePoints} points)`)
 
-        // If runOnZeroPoints is false and 0 points to earn, don't continue
-        if (!this.config.runOnZeroPoints && this.pointsCanCollect === 0) {
-            log(this.isMobile, 'MAIN', 'No points to earn and "runOnZeroPoints" is set to "false", stopping!', 'log', 'yellow')
+            // If runOnZeroPoints is false and 0 points to earn, don't continue
+            if (!this.config.runOnZeroPoints && this.pointsCanCollect === 0) {
+                log(this.isMobile, 'MAIN', 'No points to earn and "runOnZeroPoints" is set to "false", stopping!', 'log', 'yellow')
+
+                // Close mobile browser
+                await this.browser.func.closeBrowser(browser, account.email)
+                // 清理引用
+                this.homePage = undefined as any;
+                this.accessToken = '';
+                return
+            }
+
+            // Do daily check in
+            if (this.config.workers.doDailyCheckIn) {
+                await this.activities.doDailyCheckIn(this.accessToken, data)
+            }
+
+            // Do read to earn
+            if (this.config.workers.doReadToEarn) {
+                await this.activities.doReadToEarn(this.accessToken, data)
+            }
+
+            // Do mobile searches
+            let needRetry = false;
+            if (this.config.workers.doMobileSearch) {
+                if (data.userStatus.counters.mobileSearch) {
+                    // Open a new tab to where the tasks are going to be completed
+                    const workerPage = await browser.newPage()
+
+                    // Go to homepage on worker page
+                    await this.browser.func.goHome(workerPage)
+
+                    let searchSuccess = false;
+                    try {
+                        await this.activities.doSearch(workerPage, data);
+                        searchSuccess = true;
+                    } catch (error) {
+                        searchSuccess = false;
+                    }
+                    
+                    if (!searchSuccess) {
+                        // 搜索未完成
+                        const mobileSearchPoints = (await this.browser.func.getSearchPoints()).mobileSearch?.[0]
+
+                        if (mobileSearchPoints && (mobileSearchPoints.pointProgressMax - mobileSearchPoints.pointProgress) > 0) {
+                            retryAttempts++;
+                            this.log(this.isMobile, 'MAIN', `Mobile search incomplete - Points remaining: ${mobileSearchPoints.pointProgressMax - mobileSearchPoints.pointProgress}`, 'warn')
+                            needRetry = true;
+                        }
+                    } else {
+                        this.log(this.isMobile, 'MAIN', 'Mobile search completed successfully')
+                    }
+
+                    if (needRetry) {
+                        if (retryAttempts > this.config.searchSettings.retryMobileSearchAmount) {
+                            this.log(this.isMobile, 'MAIN', `Max retry limit of ${this.config.searchSettings.retryMobileSearchAmount} reached. Exiting retry loop`, 'warn')
+                            await this.browser.func.closeBrowser(browser, account.email)
+                            // 清理引用
+                            this.homePage = undefined as any;
+                            this.accessToken = '';
+                            break;
+                        } else {
+                            this.log(this.isMobile, 'MAIN', `Attempt ${retryAttempts}/${this.config.searchSettings.retryMobileSearchAmount}: Unable to complete mobile searches, bad User-Agent? Increase search delay? Retrying...`, 'log', 'yellow')
+                            await this.browser.func.closeBrowser(browser, account.email)
+                            // 清理引用
+                            this.homePage = undefined as any;
+                            this.accessToken = '';
+                            continue;
+                        }
+                    }
+                } else {
+                    log(this.isMobile, 'MAIN', 'Unable to fetch search points, your account is most likely too "new" for this! Try again later!', 'warn')
+                }
+            }
+
+            const afterPointAmount = await this.browser.func.getCurrentPoints()
+
+            log(this.isMobile, 'MAIN-POINTS', `The script collected ${afterPointAmount - this.pointsInitial} points today`)
 
             // Close mobile browser
             await this.browser.func.closeBrowser(browser, account.email)
-            return
+            // 清理引用
+            this.homePage = undefined as any;
+            this.accessToken = '';
+            break;
         }
-
-        // Do daily check in
-        if (this.config.workers.doDailyCheckIn) {
-            await this.activities.doDailyCheckIn(this.accessToken, data)
-        }
-
-        // Do read to earn
-        if (this.config.workers.doReadToEarn) {
-            await this.activities.doReadToEarn(this.accessToken, data)
-        }
-
-        // Do mobile searches
-        if (this.config.workers.doMobileSearch) {
-            // If no mobile searches data found, stop (Does not always exist on new accounts)
-            if (data.userStatus.counters.mobileSearch) {
-                // Open a new tab to where the tasks are going to be completed
-                const workerPage = await browser.newPage()
-
-                // Go to homepage on worker page
-                await this.browser.func.goHome(workerPage)
-
-                let searchSuccess = false;
-                try {
-                    await this.activities.doSearch(workerPage, data);
-                    searchSuccess = true;
-                } catch (error) {
-                    searchSuccess = false;
-                }
-                
-                if (!searchSuccess) {
-                    // 搜索未完成
-                    // Fetch current search points
-                    const mobileSearchPoints = (await this.browser.func.getSearchPoints()).mobileSearch?.[0]
-
-                    if (mobileSearchPoints && (mobileSearchPoints.pointProgressMax - mobileSearchPoints.pointProgress) > 0) {
-                        // Increment retry count
-                        this.mobileRetryAttempts++
-                        this.log(this.isMobile, 'MAIN', `Mobile search incomplete - Points remaining: ${mobileSearchPoints.pointProgressMax - mobileSearchPoints.pointProgress}`, 'warn')
-                    }
-                } else {
-                    this.log(this.isMobile, 'MAIN', 'Mobile search completed successfully')
-                }
-
-                // Exit if retries are exhausted
-                if (this.mobileRetryAttempts > this.config.searchSettings.retryMobileSearchAmount) {
-                    this.log(this.isMobile, 'MAIN', `Max retry limit of ${this.config.searchSettings.retryMobileSearchAmount} reached. Exiting retry loop`, 'warn')
-                } else if (this.mobileRetryAttempts !== 0) {
-                    this.log(this.isMobile, 'MAIN', `Attempt ${this.mobileRetryAttempts}/${this.config.searchSettings.retryMobileSearchAmount}: Unable to complete mobile searches, bad User-Agent? Increase search delay? Retrying...`, 'log', 'yellow')
-
-                    // Close mobile browser
-                    await this.browser.func.closeBrowser(browser, account.email)
-
-                    // Create a new browser and try
-                    await this.Mobile(account)
-                    return
-                }
-            } else {
-                log(this.isMobile, 'MAIN', 'Unable to fetch search points, your account is most likely too "new" for this! Try again later!', 'warn')
-            }
-        }
-
-        const afterPointAmount = await this.browser.func.getCurrentPoints()
-
-        log(this.isMobile, 'MAIN-POINTS', `The script collected ${afterPointAmount - this.pointsInitial} points today`)
-
-        // Close mobile browser
-        await this.browser.func.closeBrowser(browser, account.email)
         return
     }
 

@@ -31,12 +31,12 @@ export default class BrowserUtil {
 
         for (const button of buttons) {
             try {
+                // 只在需要时创建 locator，避免无用引用
                 const element = button.isXPath ? page.locator(`xpath=${button.selector}`) : page.locator(button.selector)
                 await element.first().click({ timeout: 500 })
                 await page.waitForTimeout(500)
-
                 this.bot.log(this.bot.isMobile, 'DISMISS-ALL-MESSAGES', `Dismissed: ${button.label}`)
-
+                // 释放 element 引用
             } catch (error) {
                 // Silent fail
             }
@@ -71,15 +71,14 @@ export default class BrowserUtil {
             const browser = page.context()
             const pages = browser.pages()
 
+            // 只保留需要的页面引用，避免无用引用
             const homeTab = pages[1]
             let homeTabURL: URL
 
             if (!homeTab) {
                 throw this.bot.log(this.bot.isMobile, 'GET-TABS', 'Home tab could not be found!', 'error')
-
             } else {
                 homeTabURL = new URL(homeTab.url())
-
                 if (homeTabURL.hostname !== 'rewards.bing.com') {
                     throw this.bot.log(this.bot.isMobile, 'GET-TABS', 'Reward page hostname is invalid: ' + homeTabURL.host, 'error')
                 }
@@ -90,11 +89,11 @@ export default class BrowserUtil {
                 throw this.bot.log(this.bot.isMobile, 'GET-TABS', 'Worker tab could not be found!', 'error')
             }
 
+            // 只返回需要的 tab
             return {
-                homeTab: homeTab,
-                workerTab: workerTab
+                homeTab,
+                workerTab
             }
-
         } catch (error) {
             throw this.bot.log(this.bot.isMobile, 'GET-TABS', 'An error occurred:' + error, 'error')
         }
@@ -102,16 +101,16 @@ export default class BrowserUtil {
 
     async reloadBadPage(page: Page): Promise<void> {
         try {
+            // 只在检测到网络错误时再解析 HTML，减少内存分配
             const html = await page.content().catch(() => '')
-            const $ = load(html)
-
-            const isNetworkError = $('body.neterror').length
-
-            if (isNetworkError) {
-                this.bot.log(this.bot.isMobile, 'RELOAD-BAD-PAGE', 'Bad page detected, reloading!')
-                await page.reload()
+            if (html.includes('neterror')) {
+                const $ = load(html)
+                const isNetworkError = $('body.neterror').length
+                if (isNetworkError) {
+                    this.bot.log(this.bot.isMobile, 'RELOAD-BAD-PAGE', 'Bad page detected, reloading!')
+                    await page.reload()
+                }
             }
-
         } catch (error) {
             throw this.bot.log(this.bot.isMobile, 'RELOAD-BAD-PAGE', 'An error occurred:' + error, 'error')
         }
