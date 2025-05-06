@@ -178,30 +178,24 @@ export class MicrosoftRewardsBot {
             return
         }
 
-        // Open a new tab to where the tasks are going to be completed
-        const workerPage = await browser.newPage()
-
-        // Go to homepage on worker page
-        await this.browser.func.goHome(workerPage)
-
         // Complete daily set
         if (this.config.workers.doDailySet) {
-            await this.workers.doDailySet(workerPage, data)
+            await this.workers.doDailySet(this.homePage, data)
         }
 
         // Complete more promotions
         if (this.config.workers.doMorePromotions) {
-            await this.workers.doMorePromotions(workerPage, data)
+            await this.workers.doMorePromotions(this.homePage, data)
         }
 
         // Complete punch cards
         if (this.config.workers.doPunchCards) {
-            await this.workers.doPunchCard(workerPage, data)
+            await this.workers.doPunchCard(this.homePage, data)
         }
 
         // Do desktop searches
         if (this.config.workers.doDesktopSearch) {
-            await this.activities.doSearch(workerPage, data)
+            await this.activities.doSearch(this.homePage, data)
         }
 
         // Save cookies
@@ -264,15 +258,9 @@ export class MicrosoftRewardsBot {
             let needRetry = false;
             if (this.config.workers.doMobileSearch) {
                 if (data.userStatus.counters.mobileSearch) {
-                    // Open a new tab to where the tasks are going to be completed
-                    const workerPage = await browser.newPage()
-
-                    // Go to homepage on worker page
-                    await this.browser.func.goHome(workerPage)
-
                     let searchSuccess = false;
                     try {
-                        await this.activities.doSearch(workerPage, data);
+                        await this.activities.doSearch(this.homePage, data);
                         searchSuccess = true;
                     } catch (error) {
                         searchSuccess = false;

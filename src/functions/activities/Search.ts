@@ -344,8 +344,27 @@ export class Search extends Workers {
                 i++
             }
 
+            // 新增：强制关闭除主标签页外的所有标签页，确保无泄漏
+            await this.closeAllExtraTabs(page);
+
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'An error occurred:' + error, 'error')
+        }
+    }
+
+    // 新增：关闭除主标签页外的所有标签页
+    private async closeAllExtraTabs(mainPage: Page) {
+        try {
+            const browser = mainPage.context();
+            const pages = browser.pages();
+            for (const p of pages) {
+                if (p !== mainPage) {
+                    await p.close();
+                    this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `Closed extra tab: "${new URL(p.url()).host}"`);
+                }
+            }
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'An error occurred while closing extra tabs: ' + error, 'error');
         }
     }
 
