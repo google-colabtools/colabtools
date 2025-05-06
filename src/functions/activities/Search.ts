@@ -227,13 +227,13 @@ export class Search extends Workers {
             const response = await this.bot.axios.request(request, this.bot.config.proxy.proxyGoogleTrends)
             const rawText = response.data
 
-            const trendsData = this.extractJsonFromResponse(rawText)
+            let trendsData = this.extractJsonFromResponse(rawText)
             if (!trendsData) {
                 this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Failed to parse Google Trends response', 'error')
                 return queryTerms // 优化：异常时及时返回，避免后续无用处理
             }
 
-            const mappedTrendsData = trendsData.map(query => [query[0], query[9]!.slice(1)])
+            let mappedTrendsData = trendsData.map(query => [query[0], query[9]!.slice(1)])
             if (mappedTrendsData.length < 90) {
                 this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Insufficient search queries, falling back to US', 'warn')
                 return this.getGoogleTrends()
