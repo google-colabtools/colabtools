@@ -30,15 +30,18 @@ export class Search extends Workers {
 
         if (missingPoints === 0) {
             this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Bing searches have already been completed')
-            return true // 添加明确的返回值
+            return
         }
 
         // Generate search queries
         let googleSearchQueries = await this.getGoogleTrends(this.bot.config.searchSettings.useGeoLocaleQueries ? data.userProfile.attributes.country : 'US')
-        googleSearchQueries = this.bot.utils.shuffleArray(googleSearchQueries)
+        // 优化：直接用 Set 去重，避免多次复制
+        googleSearchQueries = Array.from(new Set(googleSearchQueries))
 
-        // Deduplicate the search terms
-        googleSearchQueries = [...new Set(googleSearchQueries)]
+        // 优化：只在需要时生成 queries，减少内存占用
+        const queries: string[] = this.bot.isMobile
+            ? googleSearchQueries.map(x => x.topic)
+            : googleSearchQueries.flatMap(x => [x.topic, ...x.related])
 
         // Go to bing
         await page.goto(this.searchPageURL ? this.searchPageURL : this.bingHome)
@@ -48,10 +51,6 @@ export class Search extends Workers {
         await this.bot.browser.utils.tryDismissAllMessages(page)
 
         let maxLoop = 0 // If the loop hits 10 this when not gaining any points, we're assuming it's stuck. If it doesn't continue after 5 more searches with alternative queries, abort search
-
-        const queries: string[] = []
-        // Mobile search doesn't seem to like related queries?
-        googleSearchQueries.forEach(x => { this.bot.isMobile ? queries.push(x.topic) : queries.push(x.topic, ...x.related) })
 
         // Loop over Google search queries
         for (let i = 0; i < queries.length; i++) {
@@ -91,7 +90,7 @@ export class Search extends Workers {
 
         // Only for mobile searches
         if (missingPoints > 0 && this.bot.isMobile) {
-            return false // 添加明确的失败返回值
+            return
         }
 
         // If we still got remaining search queries, generate extra ones
@@ -137,8 +136,7 @@ export class Search extends Workers {
         }
 
         this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Completed searches')
-        return true // 添加明确的成功返回值
-    }
+            }
 
     private async bingSearch(searchPage: Page, query: string) {
         const platformControlKey = platform() === 'darwin' ? 'Meta' : 'Control'
@@ -212,10 +210,9 @@ export class Search extends Workers {
         return await this.bot.browser.func.getSearchPoints()
     }
 
-    private async getGoogleTrends(geoLocale: string = 'US', retryCount = 0): Promise<GoogleSearch[]> {
-        const maxRetries = 3;
+    private async getGoogleTrends(geoLocale: string = 'US'): Promise<GoogleSearch[]> {
         const queryTerms: GoogleSearch[] = []
-        this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', `Generating search queries, can take a while! | GeoLocale: ${geoLocale}${retryCount > 0 ? ` | Retry: ${retryCount}/${maxRetries}` : ''}`)
+        this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', `Generating search queries, can take a while! | GeoLocale: ${geoLocale}`)
 
         try {
             const request: AxiosRequestConfig = {
@@ -232,19 +229,14 @@ export class Search extends Workers {
 
             const trendsData = this.extractJsonFromResponse(rawText)
             if (!trendsData) {
-                throw new Error('Failed to parse Google Trends response')
+                this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Failed to parse Google Trends response', 'error')
+                return queryTerms // 优化：异常时及时返回，避免后续无用处理
             }
 
             const mappedTrendsData = trendsData.map(query => [query[0], query[9]!.slice(1)])
             if (mappedTrendsData.length < 90) {
-                if (geoLocale !== 'US' || retryCount >= maxRetries) {
-                    this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Insufficient search queries, falling back to US', 'warn')
-                    return this.getGoogleTrends()
-                }
-                // 重试当前地区
-                this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Insufficient search queries, retrying...', 'warn')
-                await this.bot.utils.wait(2000) // 等待2秒后重试
-                return this.getGoogleTrends(geoLocale, retryCount + 1)
+                this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Insufficient search queries, falling back to US', 'warn')
+                return this.getGoogleTrends()
             }
 
             for (const [topic, relatedQueries] of mappedTrendsData) {
@@ -253,14 +245,15 @@ export class Search extends Workers {
                     related: relatedQueries as string[]
                 })
             }
+            // 优化：大对象用完后置为 null，帮助 GC
+            // @ts-ignore
+            trendsData = null
+            // @ts-ignore
+            mappedTrendsData = null
 
         } catch (error) {
-            if (retryCount < maxRetries) {
-                this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', `Request failed, retrying... Error: ${error}`, 'warn')
-                await this.bot.utils.wait(2000) // 等待2秒后重试
-                return this.getGoogleTrends(geoLocale, retryCount + 1)
-            }
-            this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', `Failed after ${maxRetries} retries. Error: ${error}`, 'error')
+            this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'An error occurred:' + error, 'error')
+            return queryTerms // 优化：异常时及时返回
         }
 
         return queryTerms
@@ -297,9 +290,8 @@ export class Search extends Workers {
             return response.data[1] as string[]
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-BING-RELATED', 'An error occurred:' + error, 'error')
+            return [] // 优化：异常时及时返回
         }
-
-        return []
     }
 
     private async randomScroll(page: Page) {
@@ -308,7 +300,7 @@ export class Search extends Workers {
             const totalHeight = await page.evaluate(() => document.body.scrollHeight)
             const randomScrollPosition = Math.floor(Math.random() * (totalHeight - viewportHeight))
 
-            await page.evaluate((scrollPos: number) => {
+            await page.evaluate((scrollPos) => {
                 window.scrollTo(0, scrollPos)
             }, randomScrollPosition)
 
@@ -319,67 +311,69 @@ export class Search extends Workers {
 
     private async clickRandomLink(page: Page) {
         try {
-            await page.click('#b_results .b_algo h2', { timeout: 2000 }).catch(() => { })
+            await page.click('#b_results .b_algo h2', { timeout: 2000 }).catch(() => { }) // Since we don't really care if it did it or not
 
+            // Only used if the browser is not the edge browser (continue on Edge popup)
             await this.closeContinuePopup(page)
+
+            // Stay for 10 seconds for page to load and "visit"
             await this.bot.utils.wait(10000)
 
+            // Will get current tab if no new one is created, this will always be the visited site or the result page if it failed to click
             let lastTab = await this.bot.browser.utils.getLatestTab(page)
-            let lastTabURL = new URL(lastTab.url())
 
+            let lastTabURL = new URL(lastTab.url()) // Get new tab info, this is the website we're visiting
+
+            // Check if the URL is different from the original one, don't loop more than 5 times.
             let i = 0
             while (lastTabURL.href !== this.searchPageURL && i < 5) {
+
                 await this.closeTabs(lastTab)
-                lastTab = await this.bot.browser.utils.getLatestTab(page)
-                lastTabURL = new URL(lastTab.url())
+
+                // End of loop, refresh lastPage
+                lastTab = await this.bot.browser.utils.getLatestTab(page) // Finally update the lastTab var again
+                lastTabURL = new URL(lastTab.url()) // Get new tab info
                 i++
             }
+
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'An error occurred:' + error, 'error')
         }
     }
 
-    // 只关闭非 homePage 的多余页面，homePage 永远不关闭
     private async closeTabs(lastTab: Page) {
         const browser = lastTab.context()
         const tabs = browser.pages()
 
         try {
-            // homePage 可能为 undefined，需判断
-            const homePage = (this.bot.homePage && typeof this.bot.homePage.url === 'function') ? this.bot.homePage : null
+            if (tabs.length > 2) {
+                // If more than 2 tabs are open, close the last tab
 
-            // 只关闭不是 homePage 的多余页面
-            const extraTabs = tabs.filter(p => p !== homePage)
-            if (extraTabs.length > 1) {
-                // 优先关闭 lastTab（如果不是 homePage），否则关闭其它非 homePage 页面
-                if (lastTab !== homePage) {
-                    await lastTab.close()
-                    this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `Closed extra tab: "${new URL(lastTab.url()).host}"`)
-                } else {
-                    // 关闭第一个非 homePage 的页面
-                    if (extraTabs[0]) {
-                        await extraTabs[0].close()
-                        this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `Closed extra tab: "${new URL(extraTabs[0].url()).host}"`)
-                    }
-                }
-            } else if (tabs.length === 1 && tabs[0] === homePage) {
-                // 只剩 homePage，不做任何操作
+                await lastTab.close()
+                this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `More than 2 were open, closed the last tab: "${new URL(lastTab.url()).host}"`)
+
             } else if (tabs.length === 1) {
-                // 只剩一个非 homePage 页面，打开新页并跳转
+                // If only 1 tab is open, open a new one to search in
+
                 const newPage = await browser.newPage()
                 await this.bot.utils.wait(1000)
+
                 await newPage.goto(this.bingHome)
                 await this.bot.utils.wait(3000)
                 this.searchPageURL = newPage.url()
-                this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'There was only 1 tab open, created a new one')
+
+                this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'There was only 1 tab open, crated a new one')
             } else {
-                // 兜底：重定向 lastTab 到搜索页
+                // Else reset the last tab back to the search listing or Bing.com
+
                 lastTab = await this.bot.browser.utils.getLatestTab(lastTab)
                 await lastTab.goto(this.searchPageURL ? this.searchPageURL : this.bingHome)
             }
+
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'An error occurred:' + error, 'error')
         }
+
     }
 
     private calculatePoints(counters: Counters) {
@@ -408,4 +402,4 @@ export class Search extends Workers {
         }
     }
 
-}
+    }
