@@ -319,88 +319,67 @@ export class Search extends Workers {
 
     private async clickRandomLink(page: Page) {
         try {
-            await page.click('#b_results .b_algo h2', { timeout: 2000 }).catch(() => { }) // Since we don't really care if it did it or not
+            await page.click('#b_results .b_algo h2', { timeout: 2000 }).catch(() => { })
 
-            // Only used if the browser is not the edge browser (continue on Edge popup)
             await this.closeContinuePopup(page)
-
-            // Stay for 10 seconds for page to load and "visit"
             await this.bot.utils.wait(10000)
 
-            // Will get current tab if no new one is created, this will always be the visited site or the result page if it failed to click
             let lastTab = await this.bot.browser.utils.getLatestTab(page)
+            let lastTabURL = new URL(lastTab.url())
 
-            let lastTabURL = new URL(lastTab.url()) // Get new tab info, this is the website we're visiting
-
-            // Check if the URL is different from the original one, don't loop more than 5 times.
             let i = 0
             while (lastTabURL.href !== this.searchPageURL && i < 5) {
-
                 await this.closeTabs(lastTab)
-
-                // End of loop, refresh lastPage
-                lastTab = await this.bot.browser.utils.getLatestTab(page) // Finally update the lastTab var again
-                lastTabURL = new URL(lastTab.url()) // Get new tab info
+                lastTab = await this.bot.browser.utils.getLatestTab(page)
+                lastTabURL = new URL(lastTab.url())
                 i++
             }
-
-            // 新增：强制关闭除主标签页外的所有标签页，确保无泄漏
-            await this.closeAllExtraTabs(page);
-
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'An error occurred:' + error, 'error')
         }
     }
 
-    // 新增：关闭除主标签页外的所有标签页
-    private async closeAllExtraTabs(mainPage: Page) {
-        try {
-            const browser = mainPage.context();
-            const pages = browser.pages();
-            for (const p of pages) {
-                if (p !== mainPage) {
-                    await p.close();
-                    this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `Closed extra tab: "${new URL(p.url()).host}"`);
-                }
-            }
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'An error occurred while closing extra tabs: ' + error, 'error');
-        }
-    }
-
+    // 只关闭非 homePage 的多余页面，homePage 永远不关闭
     private async closeTabs(lastTab: Page) {
         const browser = lastTab.context()
         const tabs = browser.pages()
 
         try {
-            if (tabs.length > 2) {
-                // If more than 2 tabs are open, close the last tab
+            // homePage 可能为 undefined，需判断
+            const homePage = (this.bot.homePage && typeof this.bot.homePage.url === 'function') ? this.bot.homePage : null
 
-                await lastTab.close()
-                this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `More than 2 were open, closed the last tab: "${new URL(lastTab.url()).host}"`)
-
+            // 只关闭不是 homePage 的多余页面
+            const extraTabs = tabs.filter(p => p !== homePage)
+            if (extraTabs.length > 1) {
+                // 优先关闭 lastTab（如果不是 homePage），否则关闭其它非 homePage 页面
+                if (lastTab !== homePage) {
+                    await lastTab.close()
+                    this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `Closed extra tab: "${new URL(lastTab.url()).host}"`)
+                } else {
+                    // 关闭第一个非 homePage 的页面
+                    if (extraTabs[0]) {
+                        await extraTabs[0].close()
+                        this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `Closed extra tab: "${new URL(extraTabs[0].url()).host}"`)
+                    }
+                }
+            } else if (tabs.length === 1 && tabs[0] === homePage) {
+                // 只剩 homePage，不做任何操作
             } else if (tabs.length === 1) {
-                // If only 1 tab is open, open a new one to search in
-
+                // 只剩一个非 homePage 页面，打开新页并跳转
                 const newPage = await browser.newPage()
                 await this.bot.utils.wait(1000)
-
                 await newPage.goto(this.bingHome)
                 await this.bot.utils.wait(3000)
                 this.searchPageURL = newPage.url()
-
-                this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'There was only 1 tab open, crated a new one')
+                this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'There was only 1 tab open, created a new one')
             } else {
-                // Else reset the last tab back to the search listing or Bing.com
-
+                // 兜底：重定向 lastTab 到搜索页
                 lastTab = await this.bot.browser.utils.getLatestTab(lastTab)
                 await lastTab.goto(this.searchPageURL ? this.searchPageURL : this.bingHome)
             }
-
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'An error occurred:' + error, 'error')
         }
-
     }
 
     private calculatePoints(counters: Counters) {
