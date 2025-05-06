@@ -136,7 +136,7 @@ export class Search extends Workers {
         }
 
         this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Completed searches')
-            }
+    }
 
     private async bingSearch(searchPage: Page, query: string) {
         const platformControlKey = platform() === 'darwin' ? 'Meta' : 'Control'
@@ -402,4 +402,4 @@ export class Search extends Workers {
         }
     }
 
-    }
+}
