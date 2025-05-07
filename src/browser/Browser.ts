@@ -30,6 +30,7 @@ class Browser {
             headless: this.bot.config.headless,
             ...(proxy.url && { proxy: { username: proxy.username, password: proxy.password, server: `${proxy.url}:${proxy.port}` } }),
             args: [
+                '--disable-background-networking',
                 '--test-type', // 测试模式
                 '--disable-thorium-dns-config', // 禁用 Thorium DNS 配置
                 '--disable-quic', // 禁用quic连接
