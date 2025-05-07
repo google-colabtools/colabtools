@@ -32,7 +32,8 @@ export default class BrowserFunc {
                 return
             }
 
-            await page.goto(this.bot.config.baseURL)
+            // 增加超时时间
+            await page.goto(this.bot.config.baseURL, { timeout: 120000, waitUntil: 'load' })
 
             const maxIterations = 5 // Maximum iterations set to 5
 
@@ -64,7 +65,8 @@ export default class BrowserFunc {
                     await this.bot.browser.utils.tryDismissAllMessages(page)
 
                     await this.bot.utils.wait(2000)
-                    await page.goto(this.bot.config.baseURL)
+                    // 增加超时时间
+                    await page.goto(this.bot.config.baseURL, { timeout: 120000, waitUntil: 'load' })
                 } else {
                     this.bot.log(this.bot.isMobile, 'GO-HOME', 'Visited homepage successfully')
                     break
@@ -73,7 +75,16 @@ export default class BrowserFunc {
                 await this.bot.utils.wait(5000)
             }
 
-        } catch (error) {
+        } catch (error: any) {
+            // 针对超时错误，尝试刷新页面
+            if (error.message?.includes('net::ERR_TIMED_OUT')) {
+                this.bot.log(this.bot.isMobile, 'GO-HOME', '页面加载超时，尝试刷新页面重试', 'warn')
+                try {
+                    await page.reload({ waitUntil: 'load', timeout: 120000 })
+                } catch (reloadError) {
+                    this.bot.log(this.bot.isMobile, 'GO-HOME', '刷新页面仍然超时，建议重启浏览器 context', 'error')
+                }
+            }
             throw this.bot.log(this.bot.isMobile, 'GO-HOME', 'An error occurred:' + error, 'error')
         }
     }
@@ -100,8 +111,8 @@ export default class BrowserFunc {
                 // 重载前确保等待足够长时间
                 await this.bot.utils.wait(5000);
 
-                // 重载页面并等待网络空闲
-                await this.bot.homePage.reload({ waitUntil: 'networkidle', timeout: 60000 })
+                // 增加超时时间
+                await this.bot.homePage.reload({ waitUntil: 'networkidle', timeout: 120000 })
                 
                 // 等待页面主要内容加载
                 await this.bot.homePage.waitForSelector('#more-activities', { timeout: 30000 })
@@ -158,8 +169,17 @@ export default class BrowserFunc {
 
                 return dashboardData
 
-            } catch (error) {
+            } catch (error: any) {
                 lastError = error
+                // 针对超时错误，尝试刷新页面
+                if (error.message?.includes('net::ERR_TIMED_OUT')) {
+                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `页面加载超时，尝试刷新页面重试 (第${attempt}次)`, 'warn')
+                    try {
+                        await this.bot.homePage.reload({ waitUntil: 'load', timeout: 120000 })
+                    } catch (reloadError) {
+                        this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', '刷新页面仍然超时，建议重启浏览器 context', 'error')
+                    }
+                }
                 if (attempt < maxRetries) {
                     this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `尝试 ${attempt}/${maxRetries} 失败: ${error}. ${retryDelay/1000}秒后重试...`, 'warn')
                     await this.bot.utils.wait(retryDelay)
