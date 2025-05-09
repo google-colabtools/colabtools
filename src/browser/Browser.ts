@@ -26,9 +26,15 @@ class Browser {
 
     async createBrowser(proxy: AccountProxy, email: string): Promise<BrowserContext> {
         const browser = await playwright.chromium.launch({
-            executablePath: '/usr/bin/thorium-browser',
+            executablePath: '/root/sukaka/rewards/thorium/thorium',
             headless: this.bot.config.headless,
-            ...(proxy.url && { proxy: { username: proxy.username, password: proxy.password, server: `${proxy.url}:${proxy.port}` } }),
+            ...(proxy.url && {
+                proxy: {
+                    username: proxy.username,
+                    password: proxy.password,
+                    server: `${proxy.url}:${proxy.port}`
+                }
+            }),
             args: [
                 '--disable-background-networking',
                 '--test-type', // 测试模式
@@ -43,7 +49,22 @@ class Browser {
                 '--ignore-certificate-errors-spki-list', // 忽略指定 SPKI 列表的证书错误
                 '--ignore-ssl-errors' // 忽略 SSL 错误
             ]
-        })
+        });
+    
+        const context = await browser.newContext();
+        const page = await context.newPage();
+    
+        // ✅ 阻止图片加载以节省数据流量
+        await page.route('**/*', (route) => {
+            if (route.request().resourceType() === 'image') {
+                return route.abort(); // 拦截并终止图片请求
+            }
+            return route.continue();
+        });
+    
+        return context;
+    }
+
 
         const sessionData = await loadSessionData(this.bot.config.sessionPath, email, this.bot.isMobile, this.bot.config.saveFingerprint)
 
