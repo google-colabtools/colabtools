@@ -129,9 +129,9 @@ export class Login {
             // Wait for email field
             const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
             if (!emailField) {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field error', 'warn')
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Login error', 'warn')
                 // Agora lança uma exceção para forçar a voltar para login()
-                throw new Error('Email field error, restarting login')
+                throw new Error('Login Error, restarting login')
             }
     
             await this.bot.utils.wait(1000)
