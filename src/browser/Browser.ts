@@ -53,9 +53,25 @@ class Browser {
 
         //阻止图片加载以节省数据流量
         await context.route('**/*', (route) => {
-            if (route.request().resourceType() === 'image') {
-                return route.abort() // 拦截并终止图片请求
+            const resourceType = route.request().resourceType()
+            const url = route.request().url()
+        
+            // Bloquear imagens
+            if (resourceType === 'image') {
+                return route.abort()
             }
+        
+            // Bloquear fontes (resourceType font ou extensão conhecida)
+            if (
+                resourceType === 'font' ||
+                url.endsWith('.woff') ||
+                url.endsWith('.woff2') ||
+                url.endsWith('.ttf') ||
+                url.endsWith('.otf')
+            ) {
+                return route.abort()
+            }
+        
             return route.continue()
         })
 
