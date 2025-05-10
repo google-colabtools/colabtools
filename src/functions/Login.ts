@@ -123,41 +123,56 @@ export class Login {
     }
 
     private async enterEmail(page: Page, email: string) {
-        const emailInputSelector = 'input[type="email"]'
-
+        const emailInputSelector = 'input[type="email"]';
+    
         try {
-            // Wait for email field
-            const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
-            if (!emailField) {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found', 'warn')
-                return
+            let emailField: ElementHandle | null = null;
+            const maxRetries = 3;
+    
+            // Wait for email field with retries
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 5000 }).catch(() => null);
+                if (emailField) {
+                    break;
+                } else {
+                    this.bot.log(this.bot.isMobile, 'LOGIN', `Email field finding (attempt ${attempt}/${maxRetries})`, 'warn');
+                    if (attempt < maxRetries) {
+                        await page.reload();
+                        await this.bot.utils.wait(2000);
+                    }
+                }
             }
-
-            await this.bot.utils.wait(1000)
-
+    
+            if (!emailField) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found after retries', 'warn');
+                return;
+            }
+    
+            await this.bot.utils.wait(1000);
+    
             // Check if email is prefilled
-            const emailPrefilled = await page.waitForSelector('#userDisplayName', { timeout: 5000 }).catch(() => null)
+            const emailPrefilled = await page.waitForSelector('#userDisplayName', { timeout: 5000 }).catch(() => null);
             if (emailPrefilled) {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email already prefilled by Microsoft')
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email already prefilled by Microsoft');
             } else {
                 // Else clear and fill email
-                await page.fill(emailInputSelector, '')
-                await this.bot.utils.wait(500)
-                await page.fill(emailInputSelector, email)
-                await this.bot.utils.wait(1000)
+                await page.fill(emailInputSelector, '');
+                await this.bot.utils.wait(500);
+                await page.fill(emailInputSelector, email);
+                await this.bot.utils.wait(1000);
             }
-
-            const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null)
+    
+            const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null);
             if (nextButton) {
-                await nextButton.click()
-                await this.bot.utils.wait(2000)
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email entered successfully')
+                await nextButton.click();
+                await this.bot.utils.wait(2000);
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email entered successfully');
             } else {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after email entry', 'warn')
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after email entry', 'warn');
             }
-
+    
         } catch (error) {
-            this.bot.log(this.bot.isMobile, 'LOGIN', `Email entry failed: ${error}`, 'error')
+            this.bot.log(this.bot.isMobile, 'LOGIN', `Email entry failed: ${error}`, 'error');
         }
     }
 
