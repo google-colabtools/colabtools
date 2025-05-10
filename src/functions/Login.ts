@@ -312,38 +312,33 @@ export class Login {
     
         await page.goto(authorizeUrl.href)
     
-        this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
-    
-        const timeoutMs = 120_000 // 2 minutes
-        const startTime = Date.now()
-    
+        let currentUrl = new URL(page.url())
         let code: string | null = null
     
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-            const currentUrl = new URL(page.url())
+        this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
     
+        const timeout = 2 * 60 * 1000 // 2 minutos
+        const startTime = Date.now()
+    
+        while (true) {
             if (currentUrl.hostname === 'login.live.com' && currentUrl.pathname === '/oauth20_desktop.srf') {
                 code = currentUrl.searchParams.get('code')
                 break
             }
     
-            if (Date.now() - startTime > timeoutMs) {
-                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Authorization timeout. Returning to login.')
-                throw new Error('Authorization timeout')
+            if (Date.now() - startTime > timeout) {
+                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Authorization timeout reached. Exiting...', 'error')
+                throw new Error('Authorization did not complete in time. Please try again.')
             }
     
+            currentUrl = new URL(page.url())
             await this.bot.utils.wait(5000)
-        }
-    
-        if (!code) {
-            throw new Error('Authorization code not found')
         }
     
         const body = new URLSearchParams()
         body.append('grant_type', 'authorization_code')
         body.append('client_id', this.clientId)
-        body.append('code', code)
+        body.append('code', code!)
         body.append('redirect_uri', this.redirectUrl)
     
         const tokenRequest: AxiosRequestConfig = {
