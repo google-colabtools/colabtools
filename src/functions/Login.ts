@@ -301,7 +301,7 @@ export class Login {
 
     async getMobileAccessToken(page: Page, email: string) {
         const authorizeUrl = new URL(this.authBaseUrl)
-
+    
         authorizeUrl.searchParams.append('response_type', 'code')
         authorizeUrl.searchParams.append('client_id', this.clientId)
         authorizeUrl.searchParams.append('redirect_uri', this.redirectUrl)
@@ -309,30 +309,43 @@ export class Login {
         authorizeUrl.searchParams.append('state', crypto.randomBytes(16).toString('hex'))
         authorizeUrl.searchParams.append('access_type', 'offline_access')
         authorizeUrl.searchParams.append('login_hint', email)
-
+    
         await page.goto(authorizeUrl.href)
-
-        let currentUrl = new URL(page.url())
-        let code: string
-
+    
         this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
+    
+        const timeoutMs = 120_000 // 2 minutes
+        const startTime = Date.now()
+    
+        let code: string | null = null
+    
         // eslint-disable-next-line no-constant-condition
         while (true) {
+            const currentUrl = new URL(page.url())
+    
             if (currentUrl.hostname === 'login.live.com' && currentUrl.pathname === '/oauth20_desktop.srf') {
-                code = currentUrl.searchParams.get('code')!
+                code = currentUrl.searchParams.get('code')
                 break
             }
-
-            currentUrl = new URL(page.url())
+    
+            if (Date.now() - startTime > timeoutMs) {
+                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Authorization timeout. Returning to login.')
+                throw new Error('Authorization timeout')
+            }
+    
             await this.bot.utils.wait(5000)
         }
-
+    
+        if (!code) {
+            throw new Error('Authorization code not found')
+        }
+    
         const body = new URLSearchParams()
         body.append('grant_type', 'authorization_code')
         body.append('client_id', this.clientId)
         body.append('code', code)
         body.append('redirect_uri', this.redirectUrl)
-
+    
         const tokenRequest: AxiosRequestConfig = {
             url: this.tokenUrl,
             method: 'POST',
@@ -341,10 +354,10 @@ export class Login {
             },
             data: body.toString()
         }
-
+    
         const tokenResponse = await this.bot.axios.request(tokenRequest)
         const tokenData: OAuth = await tokenResponse.data
-
+    
         this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Successfully authorized')
         return tokenData.access_token
     }
