@@ -17,7 +17,7 @@ type GoogleTrendsResponse = [
 ];
 
 export class Search extends Workers {
-    private bingHome = 'https://cn.bing.com'
+    private bingHome = 'https://bing.com'
     private searchPageURL = ''
 
     public async doSearch(page: Page, data: DashboardData) {
@@ -35,13 +35,10 @@ export class Search extends Workers {
 
         // Generate search queries
         let googleSearchQueries = await this.getGoogleTrends(this.bot.config.searchSettings.useGeoLocaleQueries ? data.userProfile.attributes.country : 'US')
-        // 优化：直接用 Set 去重，避免多次复制
-        googleSearchQueries = Array.from(new Set(googleSearchQueries))
+        googleSearchQueries = this.bot.utils.shuffleArray(googleSearchQueries)
 
-        // 优化：只在需要时生成 queries，减少内存占用
-        const queries: string[] = this.bot.isMobile
-            ? googleSearchQueries.map(x => x.topic)
-            : googleSearchQueries.flatMap(x => [x.topic, ...x.related])
+        // Deduplicate the search terms
+        googleSearchQueries = [...new Set(googleSearchQueries)]
 
         // Go to bing
         await page.goto(this.searchPageURL ? this.searchPageURL : this.bingHome)
@@ -51,6 +48,10 @@ export class Search extends Workers {
         await this.bot.browser.utils.tryDismissAllMessages(page)
 
         let maxLoop = 0 // If the loop hits 10 this when not gaining any points, we're assuming it's stuck. If it doesn't continue after 5 more searches with alternative queries, abort search
+
+        const queries: string[] = []
+        // Mobile search doesn't seem to like related queries?
+        googleSearchQueries.forEach(x => { this.bot.isMobile ? queries.push(x.topic) : queries.push(x.topic, ...x.related) })
 
         // Loop over Google search queries
         for (let i = 0; i < queries.length; i++) {
@@ -227,13 +228,12 @@ export class Search extends Workers {
             const response = await this.bot.axios.request(request, this.bot.config.proxy.proxyGoogleTrends)
             const rawText = response.data
 
-            let trendsData = this.extractJsonFromResponse(rawText)
+            const trendsData = this.extractJsonFromResponse(rawText)
             if (!trendsData) {
-                this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Failed to parse Google Trends response', 'error')
-                return queryTerms // 优化：异常时及时返回，避免后续无用处理
+               throw  this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Failed to parse Google Trends response', 'error')
             }
 
-            let mappedTrendsData = trendsData.map(query => [query[0], query[9]!.slice(1)])
+            const mappedTrendsData = trendsData.map(query => [query[0], query[9]!.slice(1)])
             if (mappedTrendsData.length < 90) {
                 this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Insufficient search queries, falling back to US', 'warn')
                 return this.getGoogleTrends()
@@ -245,15 +245,9 @@ export class Search extends Workers {
                     related: relatedQueries as string[]
                 })
             }
-            // 优化：大对象用完后置为 null，帮助 GC
-            // @ts-ignore
-            trendsData = null
-            // @ts-ignore
-            mappedTrendsData = null
 
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'An error occurred:' + error, 'error')
-            return queryTerms // 优化：异常时及时返回
         }
 
         return queryTerms
@@ -290,8 +284,9 @@ export class Search extends Workers {
             return response.data[1] as string[]
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-BING-RELATED', 'An error occurred:' + error, 'error')
-            return [] // 优化：异常时及时返回
         }
+
+        return []
     }
 
     private async randomScroll(page: Page) {
