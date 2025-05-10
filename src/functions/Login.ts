@@ -123,95 +123,47 @@ export class Login {
     }
 
     private async enterEmail(page: Page, email: string) {
-        const emailInputSelector = 'input[type="email"]';
+        const emailInputSelector = 'input[type="email"]'
     
         try {
-            let emailField: ElementHandle | null = null;
-            const maxRetries = 3;
-    
-            // Wait for email field with retries
-            for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 5000 }).catch(() => null);
-                if (emailField) {
-                    break;
-                } else {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', `Email field finding (attempt ${attempt}/${maxRetries})`, 'warn');
-                    if (attempt < maxRetries) {
-                        await page.reload();
-                        await this.bot.utils.wait(2000);
-                    }
-                }
-            }
-    
+            // Wait for email field
+            const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
             if (!emailField) {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found after retries', 'warn');
-                return;
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field error', 'warn')
+                // Agora lança uma exceção para forçar a voltar para login()
+                throw new Error('Email field error, restarting login')
             }
     
-            await this.bot.utils.wait(1000);
+            await this.bot.utils.wait(1000)
     
             // Check if email is prefilled
-            const emailPrefilled = await page.waitForSelector('#userDisplayName', { timeout: 5000 }).catch(() => null);
+            const emailPrefilled = await page.waitForSelector('#userDisplayName', { timeout: 5000 }).catch(() => null)
             if (emailPrefilled) {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email already prefilled by Microsoft');
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email already prefilled by Microsoft')
             } else {
                 // Else clear and fill email
-                await page.fill(emailInputSelector, '');
-                await this.bot.utils.wait(500);
-                await page.fill(emailInputSelector, email);
-                await this.bot.utils.wait(1000);
+                await page.fill(emailInputSelector, '')
+                await this.bot.utils.wait(500)
+                await page.fill(emailInputSelector, email)
+                await this.bot.utils.wait(1000)
             }
     
-            const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null);
-            if (nextButton) {
-                await nextButton.click();
-                await this.bot.utils.wait(2000);
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email entered successfully');
-            } else {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after email entry', 'warn');
-            }
-    
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'LOGIN', `Email entry failed: ${error}`, 'error');
-        }
-    }
-
-    private async enterPassword(page: Page, password: string) {
-        const passwordInputSelector = 'input[type="password"]'
-
-        try {
-            // Wait for password field
-            const passwordField = await page.waitForSelector(passwordInputSelector, { state: 'visible', timeout: 5000 }).catch(() => null)
-            if (!passwordField) {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Password field not found, possibly 2FA required', 'warn')
-                await this.handle2FA(page)
-                return
-            }
-
-            await this.bot.utils.wait(1000)
-
-            // Clear and fill password
-            await page.fill(passwordInputSelector, '')
-            await this.bot.utils.wait(500)
-            await page.fill(passwordInputSelector, password)
-            await this.bot.utils.wait(1000)
-
             const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null)
             if (nextButton) {
                 await nextButton.click()
                 await this.bot.utils.wait(2000)
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Password entered successfully')
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email entered successfully')
             } else {
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after password entry', 'warn')
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after email entry', 'warn')
             }
-
+    
         } catch (error) {
-            this.bot.log(this.bot.isMobile, 'LOGIN', `Password entry failed: ${error}`, 'error')
-            await this.handle2FA(page)
+            this.bot.log(this.bot.isMobile, 'LOGIN', `Email entry failed: ${error}`, 'error')
+            // Lança novamente para garantir que suba até login()
+            throw error
         }
     }
-
-
+    
     private async handle2FA(page: Page) {
         try {
             const numberToPress = await this.get2FACode(page)
