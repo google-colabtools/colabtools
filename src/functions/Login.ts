@@ -52,8 +52,6 @@ export class Login {
                     await page.goto('https://rewards.bing.com/signin')
                     await page.waitForLoadState('domcontentloaded').catch(() => { })
                     await this.bot.browser.utils.reloadBadPage(page)
-                } else {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button not found, proceeding normally');
                 }
 
                 const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
