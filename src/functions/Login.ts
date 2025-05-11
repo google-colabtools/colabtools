@@ -37,18 +37,29 @@ export class Login {
                 await page.waitForLoadState('domcontentloaded').catch(() => {});
                 await this.bot.browser.utils.reloadBadPage(page);
     
-                // Verifica se a conta está bloqueada logo após entrar
                 await this.checkAccountLocked(page);
     
-                const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 })
-                    .then(() => true)
-                    .catch(() => false);
+                let isLoggedIn = false;
+    
+                for (let check = 1; check <= 3; check++) {
+                    const emailInput = await page.$('input[type="email"]');
+                    const rewardsPortal = await page.$('html[data-role-name="RewardsPortal"]');
+    
+                    if (rewardsPortal && !emailInput) {
+                        isLoggedIn = true;
+                        break;
+                    }
+    
+                    this.bot.log(this.bot.isMobile, 'LOGIN', `Login check ${check}/3: still not logged in. Retrying...`);
+                    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+                    await this.bot.utils.wait(2000);
+                }
     
                 if (!isLoggedIn) {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Not logged in, executing login steps...');
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Not logged in after checks, executing login steps...');
                     await this.execLogin(page, email, password);
                 } else {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in, skipping login steps');
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in (RewardsPortal present and email input not found), skipping login steps');
                 }
     
                 await this.checkAccountLocked(page);
