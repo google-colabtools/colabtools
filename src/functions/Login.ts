@@ -33,36 +33,54 @@ export class Login {
     
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                await page.goto('https://www.bing.com');
-                await page.waitForLoadState('domcontentloaded').catch(() => {});
-                await this.bot.browser.utils.reloadBadPage(page);
                 await page.goto('https://rewards.bing.com/signin');
                 await page.waitForLoadState('domcontentloaded').catch(() => {});
-                await page.screenshot({ path: `/content/screenshot-${Date.now()}.png` });
                 await this.bot.browser.utils.reloadBadPage(page);
+                
+                // Verificar se existe o botão "Skip for now" e clicar nele se existir
+                const skipButton = await page.getByText('Skip for now', { exact: false }).first().click().catch(() => {
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Button "Skip for now" not found, continuing normally');
+                });
+                
+                if (skipButton) {
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Button "Skip for now" found and clicked, restarting process');
+                    continue; // Volta para o início do loop de tentativas
+                }
+                
                 await this.checkAccountLocked(page);
     
+                // Verificação de login e execução de login em um único loop
                 let isLoggedIn = false;
-    
-                for (let check = 1; check <= 3; check++) {
-                    const emailInput = await page.$('input[type="email"]');
+                const maxLoginChecks = 3;
+                
+                for (let check = 1; check <= maxLoginChecks; check++) {
                     const rewardsPortal = await page.$('html[data-role-name="RewardsPortal"]');
     
-                    if (rewardsPortal || !emailInput) {
+                    if (rewardsPortal) {
                         isLoggedIn = true;
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in, skipping login steps');
                         break;
                     }
-    
-                    this.bot.log(this.bot.isMobile, 'LOGIN', `Login check ${check}/3: not logged in yet. Reloading...`);
-                    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
-                    await this.bot.utils.wait(2000);
+                    
+                    if (check === maxLoginChecks) {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Not logged in after checks, executing login steps...');
+                        await this.execLogin(page, email, password);
+                        
+                        // Verificar novamente se o login foi bem-sucedido após execLogin
+                        const loginSuccess = await page.$('html[data-role-name="RewardsPortal"]');
+                        if (!loginSuccess) {
+                            throw new Error('Login failed after execution');
+                        }
+                        isLoggedIn = true;
+                    } else {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', `Login check ${check}/${maxLoginChecks}: not logged in yet. Reloading...`);
+                        await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+                        await this.bot.utils.wait(2000);
+                    }
                 }
-    
+                
                 if (!isLoggedIn) {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Not logged in after checks, executing login steps...');
-                    await this.execLogin(page, email, password);
-                } else {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in (RewardsPortal OR no email input), skipping login steps');
+                    throw new Error('Failed to login after all attempts');
                 }
     
                 await this.checkAccountLocked(page);
@@ -296,7 +314,6 @@ export class Login {
 
         let currentUrl = new URL(page.url())
         let code: string
-        await page.screenshot({ path: `/content/screenshot-${Date.now()}.png` });
         this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
         // eslint-disable-next-line no-constant-condition
         while (true) {
