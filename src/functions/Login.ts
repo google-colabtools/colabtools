@@ -45,12 +45,12 @@ export class Login {
                     const emailInput = await page.$('input[type="email"]');
                     const rewardsPortal = await page.$('html[data-role-name="RewardsPortal"]');
     
-                    if (rewardsPortal && !emailInput) {
+                    if (rewardsPortal || !emailInput) {
                         isLoggedIn = true;
                         break;
                     }
     
-                    this.bot.log(this.bot.isMobile, 'LOGIN', `Login check ${check}/3: still not logged in. Retrying...`);
+                    this.bot.log(this.bot.isMobile, 'LOGIN', `Login check ${check}/3: not logged in yet. Reloading...`);
                     await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
                     await this.bot.utils.wait(2000);
                 }
@@ -59,7 +59,7 @@ export class Login {
                     this.bot.log(this.bot.isMobile, 'LOGIN', 'Not logged in after checks, executing login steps...');
                     await this.execLogin(page, email, password);
                 } else {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in (RewardsPortal present and email input not found), skipping login steps');
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in (RewardsPortal OR no email input), skipping login steps');
                 }
     
                 await this.checkAccountLocked(page);
