@@ -126,6 +126,13 @@ export class Login {
         const emailInputSelector = 'input[type="email"]'
     
         try {    
+            // Verifica se já está logado antes de qualquer ação
+            const alreadyLoggedIn = await page.$('html[data-role-name="RewardsPortal"]')
+            if (alreadyLoggedIn) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Detected already logged in (via RewardsPortal selector). Skipping email entry.')
+                return
+            }
+            
             await this.bot.utils.wait(1000)
     
             // Check if email is prefilled
