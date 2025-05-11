@@ -280,7 +280,7 @@ export class Login {
 
     async getMobileAccessToken(page: Page, email: string) {
         const authorizeUrl = new URL(this.authBaseUrl)
-    
+
         authorizeUrl.searchParams.append('response_type', 'code')
         authorizeUrl.searchParams.append('client_id', this.clientId)
         authorizeUrl.searchParams.append('redirect_uri', this.redirectUrl)
@@ -288,38 +288,30 @@ export class Login {
         authorizeUrl.searchParams.append('state', crypto.randomBytes(16).toString('hex'))
         authorizeUrl.searchParams.append('access_type', 'offline_access')
         authorizeUrl.searchParams.append('login_hint', email)
-    
+
         await page.goto(authorizeUrl.href)
-    
+
         let currentUrl = new URL(page.url())
-        let code: string | null = null
-    
+        let code: string
+
         this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
-    
-        const timeout = 2 * 60 * 1000 // 2 minutos
-        const startTime = Date.now()
-    
+        // eslint-disable-next-line no-constant-condition
         while (true) {
             if (currentUrl.hostname === 'login.live.com' && currentUrl.pathname === '/oauth20_desktop.srf') {
-                code = currentUrl.searchParams.get('code')
+                code = currentUrl.searchParams.get('code')!
                 break
             }
-    
-            if (Date.now() - startTime > timeout) {
-                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Authorization timeout reached. Exiting...', 'error')
-                throw new Error('Authorization did not complete in time. Please try again.')
-            }
-    
+
             currentUrl = new URL(page.url())
             await this.bot.utils.wait(5000)
         }
-    
+
         const body = new URLSearchParams()
         body.append('grant_type', 'authorization_code')
         body.append('client_id', this.clientId)
-        body.append('code', code!)
+        body.append('code', code)
         body.append('redirect_uri', this.redirectUrl)
-    
+
         const tokenRequest: AxiosRequestConfig = {
             url: this.tokenUrl,
             method: 'POST',
@@ -328,10 +320,10 @@ export class Login {
             },
             data: body.toString()
         }
-    
+
         const tokenResponse = await this.bot.axios.request(tokenRequest)
         const tokenData: OAuth = await tokenResponse.data
-    
+
         this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Successfully authorized')
         return tokenData.access_token
     }
