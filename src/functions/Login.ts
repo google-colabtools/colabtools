@@ -33,10 +33,13 @@ export class Login {
     
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                await page.goto('https://rewards.bing.com/signin');
+                await page.goto('https://www.bing.com');
                 await page.waitForLoadState('domcontentloaded').catch(() => {});
                 await this.bot.browser.utils.reloadBadPage(page);
-    
+                await page.goto('https://rewards.bing.com/signin');
+                await page.waitForLoadState('domcontentloaded').catch(() => {});
+                await page.screenshot({ path: `/content/screenshot-${Date.now()}.png` });
+                await this.bot.browser.utils.reloadBadPage(page);
                 await this.checkAccountLocked(page);
     
                 let isLoggedIn = false;
@@ -293,7 +296,7 @@ export class Login {
 
         let currentUrl = new URL(page.url())
         let code: string
-
+        await page.screenshot({ path: `/content/screenshot-${Date.now()}.png` });
         this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
         // eslint-disable-next-line no-constant-condition
         while (true) {
