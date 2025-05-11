@@ -28,79 +28,91 @@ export class Login {
 
     async login(page: Page, email: string, password: string) {
         const maxRetries = 3;
-        const retryDelay = 30000;
+        const retryDelay = 30000; // 30 seconds
         let lastError: any;
-    
+
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                await page.goto('https://rewards.bing.com/signin');
-                await page.waitForLoadState('domcontentloaded').catch(() => {});
-                await this.bot.browser.utils.reloadBadPage(page);
-                
-                // Verificar se existe o botão "Skip for now" e clicar nele se existir
-                const skipButton = await page.getByText('Skip for now', { exact: false }).first().click().catch(() => {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Button "Skip for now" not found, continuing normally');
-                });
-                
+                // Navigate to the Bing login page
+                await page.goto('https://rewards.bing.com/signin')
+
+                await page.waitForLoadState('domcontentloaded').catch(() => { })
+
+                await this.bot.browser.utils.reloadBadPage(page)
+
+                // Check if account is locked
+                await this.checkAccountLocked(page)
+
+                // After any login step where the button may appear, add:
+                const skipButton = await page.$('button[data-testid="secondaryButton"]');
                 if (skipButton) {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Button "Skip for now" found and clicked, restarting process');
-                    continue; // Volta para o início do loop de tentativas
+                    await skipButton.click();
+                    this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
+                    await this.bot.utils.wait(5000); // Wait a bit after clicking
+                    await page.goto('https://rewards.bing.com/signin')
+                    await page.waitForLoadState('domcontentloaded').catch(() => { })
+                    await this.bot.browser.utils.reloadBadPage(page)
+                } else {
+                    this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button not found, proceeding normally');
                 }
-                
-                await this.checkAccountLocked(page);
-    
-                // Verificação de login e execução de login em um único loop
-                let isLoggedIn = false;
-                const maxLoginChecks = 3;
-                
-                for (let check = 1; check <= maxLoginChecks; check++) {
-                    const rewardsPortal = await page.$('html[data-role-name="RewardsPortal"]');
-    
-                    if (rewardsPortal) {
-                        isLoggedIn = true;
-                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in, skipping login steps');
-                        break;
-                    }
-                    
-                    if (check === maxLoginChecks) {
-                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Not logged in after checks, executing login steps...');
-                        await this.execLogin(page, email, password);
-                        
-                        // Verificar novamente se o login foi bem-sucedido após execLogin
-                        const loginSuccess = await page.$('html[data-role-name="RewardsPortal"]');
-                        if (!loginSuccess) {
-                            throw new Error('Login failed after execution');
-                        }
-                        isLoggedIn = true;
-                    } else {
-                        this.bot.log(this.bot.isMobile, 'LOGIN', `Login check ${check}/${maxLoginChecks}: not logged in yet. Reloading...`);
-                        await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
-                        await this.bot.utils.wait(2000);
-                    }
-                }
-                
+
+                const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
+
                 if (!isLoggedIn) {
-                    throw new Error('Failed to login after all attempts');
+                    await this.execLogin(page, email, password)
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged into Microsoft successfully')
+                } else {
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in')
+
+                    // Check if account is locked
+                    await this.checkAccountLocked(page);
+
+                    const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10_000 })
+                        .then(() => true)
+                        .catch(() => false);
+
+                    if (!isLoggedIn) {
+                        await this.execLogin(page, email, password);
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged into Microsoft successfully');
+                    } else {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in');
+                        await this.checkAccountLocked(page);
+                    }
                 }
-    
-                await this.checkAccountLocked(page);
+
+                // Check if logged in to bing
                 await this.checkBingLogin(page);
+
+                // Save session
                 await saveSessionData(this.bot.config.sessionPath, page.context(), email, this.bot.isMobile);
+
+                // We're done logging in
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged in successfully, saved login session!');
-                return;
-    
+                return; // 成功后直接返回
+
             } catch (error) {
                 lastError = error;
                 if (attempt < maxRetries) {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', `Login attempt ${attempt} failed: ${error}. Retrying in ${retryDelay / 1000}s...`, 'warn');
+                    this.bot.log(
+                        this.bot.isMobile, 
+                        'LOGIN', 
+                        `Login attempt ${attempt} failed: ${error}. Retrying in ${retryDelay/1000}s...`, 
+                        'warn'
+                    );
+                    // 重试前等待
                     await this.bot.utils.wait(retryDelay);
+                    
+                    // 尝试清理页面状态
                     try {
                         await page.reload({ waitUntil: 'domcontentloaded' });
-                    } catch (e) {}
+                    } catch (e) {
+                        // 忽略重载错误
+                    }
                 }
             }
         }
-    
+
+        // 所有重试都失败了，抛出最后一个错误
         throw this.bot.log(this.bot.isMobile, 'LOGIN', `Failed after ${maxRetries} attempts. Last error: ${lastError}`, 'error');
     }
 
