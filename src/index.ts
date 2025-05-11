@@ -219,6 +219,7 @@ export class MicrosoftRewardsBot {
 
             // Login into MS Rewards, then go to rewards homepage
             await this.login.login(this.homePage, account.email, account.password)
+            this.accessToken = await this.login.getMobileAccessToken(this.homePage, account.email)
 
             await this.browser.func.goHome(this.homePage)
 
