@@ -54,8 +54,17 @@ export class Login {
                     await this.bot.browser.utils.reloadBadPage(page)
                 }
 
-                const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
+                const isLoggedInTest = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
 
+                if (!isLoggedInTest) {
+                    await page.goto('https://rewards.bing.com/signin')
+                    await page.waitForLoadState('domcontentloaded').catch(() => { })
+                    await this.bot.browser.utils.reloadBadPage(page)
+                    // Check if account is locked
+                    await this.checkAccountLocked(page)
+                }
+                
+                const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
                 if (!isLoggedIn) {
                     await this.execLogin(page, email, password)
                     this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged into Microsoft successfully')
