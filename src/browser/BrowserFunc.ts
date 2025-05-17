@@ -112,7 +112,7 @@ export default class BrowserFunc {
                 await this.bot.utils.wait(5000);
 
                 // 增加超时时间
-                await this.bot.homePage.reload({ waitUntil: 'networkidle', timeout: 60000 })
+                await this.bot.homePage.reload({ waitUntil: 'networkidle', timeout: 90000 })
                 
                 // 等待页面主要内容加载
                 await this.bot.homePage.waitForSelector('#more-activities', { timeout: 30000 })
