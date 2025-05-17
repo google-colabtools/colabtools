@@ -207,6 +207,8 @@ export class Login {
                 this.bot.log(this.bot.isMobile, 'LOGIN', '"Use your password" button clicked successfully');
             }
 
+            await this.bot.utils.wait(5000)
+
             const passwordField = await page.waitForSelector(passwordInputSelector, { state: 'visible', timeout: 5000 }).catch(() => null)
             if (!passwordField) {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Password field not found, possibly 2FA required', 'warn')
