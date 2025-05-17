@@ -186,8 +186,13 @@ export class Login {
     private async enterPassword(page: Page, password: string) {
         const passwordInputSelector = 'input[type="password"]'
 
+        const alreadyLoggedIn = await page.$('html[data-role-name="RewardsPortal"]')
+        if (alreadyLoggedIn) {
+            this.bot.log(this.bot.isMobile, 'LOGIN', 'Detected already logged in (via RewardsPortal selector). Skipping password entry.')
+            return
+        }
+        
         try {
-            // Wait for password field
             const passwordField = await page.waitForSelector(passwordInputSelector, { state: 'visible', timeout: 5000 }).catch(() => null)
             if (!passwordField) {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Password field not found, possibly 2FA required', 'warn')
