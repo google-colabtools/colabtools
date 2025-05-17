@@ -145,14 +145,24 @@ export class Login {
     private async enterEmail(page: Page, email: string) {
         const emailInputSelector = 'input[type="email"]'
     
-        try {    
+        try {   
+
+            const isLoggedInTest = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
+
+            if (!isLoggedInTest) {
+                await page.goto('https://rewards.bing.com/signin')
+                await page.waitForLoadState('domcontentloaded').catch(() => { })
+                await this.bot.browser.utils.reloadBadPage(page)
+                // Check if account is locked
+                await this.checkAccountLocked(page)
+            }            
             // Verifica se já está logado antes de qualquer ação
             const alreadyLoggedIn = await page.$('html[data-role-name="RewardsPortal"]')
             if (alreadyLoggedIn) {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Detected already logged in (via RewardsPortal selector). Skipping email entry.')
                 return
             }
-
+            
             // Wait for email field
             const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
             if (!emailField) {
@@ -193,15 +203,13 @@ export class Login {
 
     private async enterPassword(page: Page, password: string) {
         const passwordInputSelector = 'input[type="password"]'
-
-        const alreadyLoggedIn = await page.$('html[data-role-name="RewardsPortal"]')
-        if (alreadyLoggedIn) {
-            this.bot.log(this.bot.isMobile, 'LOGIN', 'Detected already logged in (via RewardsPortal selector). Skipping password entry.')
-            return
-        }
         
         try {
-
+            const alreadyLoggedIn = await page.$('html[data-role-name="RewardsPortal"]')
+            if (alreadyLoggedIn) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Detected already logged in (via RewardsPortal selector). Skipping password entry.')
+                return
+            }
             const UsePasswordButton = await page.$('span[role="button"]:has-text("Use your password")');
             if (UsePasswordButton) {
                 await UsePasswordButton.click();
