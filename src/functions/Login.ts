@@ -245,6 +245,13 @@ export class Login {
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
                 const screenshotPath = `/content/password_enter_${timestamp}.png`;
                 await page.screenshot({ path: screenshotPath });
+                // After any login step where the button may appear, add:
+                const skipButton = await page.$('button[data-testid="secondaryButton"]');
+                if (skipButton) {
+                    await skipButton.click();
+                    this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
+                    await this.bot.utils.wait(5000); // Wait a bit after clicking
+                }
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Password entered successfully')
             } else {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after password entry', 'warn')
