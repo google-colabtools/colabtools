@@ -166,9 +166,14 @@ export class Login {
             // Wait for email field
             const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
             if (!emailField) {
+                //screenshot
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
+                const screenshotPath = `/content/email_field_${timestamp}.png`;
+                await page.screenshot({ path: screenshotPath });
+
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found', 'warn')
-                //throw new Error('Email field not found');
-                return
+                throw new Error('Email field not found');
+                //return
             }
             
             await this.bot.utils.wait(1000)
