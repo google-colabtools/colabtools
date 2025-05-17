@@ -242,6 +242,9 @@ export class Login {
             if (nextButton) {
                 await nextButton.click()
                 await this.bot.utils.wait(2000)
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
+                const screenshotPath = `/content/password_enter_${timestamp}.png`;
+                await page.screenshot({ path: screenshotPath });
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Password entered successfully')
             } else {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after password entry', 'warn')
