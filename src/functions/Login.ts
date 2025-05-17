@@ -157,6 +157,7 @@ export class Login {
             const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
             if (!emailField) {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found', 'warn')
+                //throw new Error('Email field not found');
                 return
             }
             
