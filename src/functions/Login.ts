@@ -152,6 +152,13 @@ export class Login {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Detected already logged in (via RewardsPortal selector). Skipping email entry.')
                 return
             }
+
+            // Wait for email field
+            const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
+            if (!emailField) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found', 'warn')
+                return
+            }
             
             await this.bot.utils.wait(1000)
     
@@ -193,6 +200,13 @@ export class Login {
         }
         
         try {
+
+            const UsePasswordButton = await page.$('span[role="button"]:has-text("Use your password")');
+            if (UsePasswordButton) {
+                await UsePasswordButton.click();
+                this.bot.log(this.bot.isMobile, 'LOGIN', '"Use your password" button clicked successfully');
+            }
+
             const passwordField = await page.waitForSelector(passwordInputSelector, { state: 'visible', timeout: 5000 }).catch(() => null)
             if (!passwordField) {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Password field not found, possibly 2FA required', 'warn')
