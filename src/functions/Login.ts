@@ -364,22 +364,21 @@ export class Login {
         try {
             this.bot.log(this.bot.isMobile, 'LOGIN-BING', 'Verifying Bing login')
             await page.goto('https://www.bing.com/fd/auth/signin?action=interactive&provider=windows_live_id&return_url=https%3A%2F%2Fwww.bing.com%2F')
-            await page.waitForLoadState('load');
-            await this.bot.utils.wait(1000);
-            const acceptButton = await page.$('#bnp_btn_accept a');
-            if (acceptButton) {
-                await acceptButton.click();
-                this.bot.log(this.bot.isMobile, 'LOGIN', '"Accept" button from Bing Cookie Banner clicked successfully');
-                await this.bot.utils.wait(3000); // Espera após o clique
-            }
             const maxIterations = 5
-
+            await this.bot.utils.wait(1000);
             for (let iteration = 1; iteration <= maxIterations; iteration++) {
                 const currentUrl = new URL(page.url())
 
                 if (currentUrl.hostname === 'www.bing.com' && currentUrl.pathname === '/') {
                     await this.bot.browser.utils.tryDismissAllMessages(page)
 
+                    await this.bot.utils.wait(1000);
+                    const acceptButton = await page.$('#bnp_btn_accept a');
+                    if (acceptButton) {
+                        await acceptButton.click();
+                        this.bot.log(this.bot.isMobile, 'LOGIN', '"Accept" button from Bing Cookie Banner clicked successfully');
+                        await this.bot.utils.wait(3000); // Espera após o clique
+                    }
                     const loggedIn = await this.checkBingLoginStatus(page)
                     // If mobile browser, skip this step
                     if (loggedIn || this.bot.isMobile) {
