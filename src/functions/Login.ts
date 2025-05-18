@@ -364,7 +364,7 @@ export class Login {
         try {
             this.bot.log(this.bot.isMobile, 'LOGIN-BING', 'Verifying Bing login')
             await page.goto('https://www.bing.com/fd/auth/signin?action=interactive&provider=windows_live_id&return_url=https%3A%2F%2Fwww.bing.com%2F')
-
+            await page.waitForLoadState('domcontentloaded').catch(() => { })
             const maxIterations = 5
 
             for (let iteration = 1; iteration <= maxIterations; iteration++) {
