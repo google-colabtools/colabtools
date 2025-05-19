@@ -173,6 +173,7 @@ export class Search extends Workers {
                 this.searchPageURL = new URL(resultPage.url()).href // Set the results page
 
                 await this.bot.browser.utils.reloadBadPage(resultPage)
+                await this.bot.browser.utils.tryDismissAllMessages(resultPage)
 
                 if (this.bot.config.searchSettings.scrollRandomResults) {
                     await this.bot.utils.wait(2000)
