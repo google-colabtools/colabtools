@@ -18,7 +18,7 @@ export default class BrowserUtil {
             { selector: '.ext-secondary.ext-button', label: '"Skip for now" Button' },
             { selector: '#iLandingViewAction', label: 'iLandingViewAction' },
             { selector: '#iShowSkip', label: 'iShowSkip' },
-            { selector: '#iNext', label: 'iNext' },
+            //{ selector: '#iNext', label: 'iNext' },
             { selector: '#iLooksGood', label: 'iLooksGood' },
             { selector: '#idSIButton9', label: 'idSIButton9' },
             { selector: '.ms-Button.ms-Button--primary', label: 'Primary Button' },
