@@ -242,9 +242,9 @@ export class Login {
             if (nextButton) {
                 await nextButton.click()
                 await this.bot.utils.wait(2000)
-                //const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
-                //const screenshotPath = `/content/password_enter_${timestamp}.png`;
-                //await page.screenshot({ path: screenshotPath });
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
+                const screenshotPath = `/content/password_enter_${timestamp}.png`;
+                await page.screenshot({ path: screenshotPath });
                 // After any login step where the button may appear, add:
                 const skipButton = await page.$('button[data-testid="secondaryButton"]');
                 if (skipButton) {
