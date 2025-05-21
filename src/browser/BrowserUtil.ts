@@ -18,7 +18,7 @@ export default class BrowserUtil {
             { selector: '.ext-secondary.ext-button', label: '"Skip for now" Button' },
             { selector: '#iLandingViewAction', label: 'iLandingViewAction' },
             { selector: '#iShowSkip', label: 'iShowSkip' },
-            { selector: '#iNext', label: 'iNext' },
+            //{ selector: '#iNext', label: 'iNext' },
             { selector: '#iLooksGood', label: 'iLooksGood' },
             { selector: '#idSIButton9', label: 'idSIButton9' },
             { selector: '.ms-Button.ms-Button--primary', label: 'Primary Button' },
@@ -31,14 +31,14 @@ export default class BrowserUtil {
 
         for (const button of buttons) {
             try {
+                // 只在需要时创建 locator，避免无用引用
+                //const element = button.isXPath ? page.locator(`xpath=${button.selector}`) : page.locator(button.selector)
+                //await element.first().click({ timeout: 500 })
+                //await page.waitForTimeout(500)
                 //screenshot
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
                 const screenshotPath = `/content/dismissed_${timestamp}.png`;
                 await page.screenshot({ path: screenshotPath });
-                // 只在需要时创建 locator，避免无用引用
-                const element = button.isXPath ? page.locator(`xpath=${button.selector}`) : page.locator(button.selector)
-                await element.first().click({ timeout: 500 })
-                await page.waitForTimeout(500)
                 
                 this.bot.log(this.bot.isMobile, 'DISMISS-ALL-MESSAGES', `Dismissed: ${button.label}`)
                 // 释放 element 引用
