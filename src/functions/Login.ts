@@ -244,7 +244,7 @@ export class Login {
                 const screenshotPath = `/content/password_enter_${timestamp}.png`;
                 await page.screenshot({ path: screenshotPath });
                 await nextButton.click()
-                await this.bot.utils.wait(2000)
+                await this.bot.utils.wait(5000)
                 // After any login step where the button may appear, add:
                 const skipButton = await page.$('button[data-testid="secondaryButton"]');
                 if (skipButton) {
@@ -348,6 +348,12 @@ export class Login {
 
         // eslint-disable-next-line no-constant-condition
         while (true) {
+            const skipButton = await page.$('button[data-testid="secondaryButton"]');
+            if (skipButton) {
+                await skipButton.click();
+                this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
+                await this.bot.utils.wait(5000); // Wait a bit after clicking
+            }
             await this.bot.browser.utils.tryDismissAllMessages(page)
             const currentURL = new URL(page.url())
             if (currentURL.hostname === targetHostname && currentURL.pathname === targetPathname) {
@@ -374,6 +380,12 @@ export class Login {
                 const currentUrl = new URL(page.url());
     
                 if (currentUrl.hostname === 'www.bing.com' && currentUrl.pathname === '/') {
+                    const skipButton = await page.$('button[data-testid="secondaryButton"]');
+                    if (skipButton) {
+                        await skipButton.click();
+                        this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
+                        await this.bot.utils.wait(5000); // Wait a bit after clicking
+                    }
                     await this.bot.browser.utils.tryDismissAllMessages(page);
                     await this.bot.utils.wait(1000);
     
