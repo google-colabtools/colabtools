@@ -53,28 +53,24 @@ class Browser {
 
         //阻止图片加载以节省数据流量
         await context.route('**/*', (route) => {
-            const resourceType = route.request().resourceType()
-            const url = route.request().url()
+            const request = route.request();
+            const resourceType = request.resourceType();
+            const url = request.url().toLowerCase(); // Colocar em minúsculo para facilitar a verificação
         
-            // Bloquear imagens
-            if (resourceType === 'image') {
-                return route.abort()
-            }
-        
-            // Bloquear fontes (resourceType font ou extensão conhecida)
+            // Bloquear todos os tipos de imagem
             if (
-                resourceType === 'font' ||
-                url.endsWith('.woff') ||
-                url.endsWith('.woff2') ||
-                url.endsWith('.ttf') ||
-                url.endsWith('.otf')
+                resourceType === 'image' ||                              // Imagens padrão (png, jpg, gif)
+                resourceType === 'media' ||                              // Pode incluir outros tipos
+                resourceType === 'font' ||                               // Bloquear fontes
+                url.match(/\.(png|jpg|jpeg|gif|bmp|webp|svg|ico)$/) ||  // Extensões comuns de imagens
+                url.match(/\.(woff|woff2|ttf|otf|eot)$/)                // Extensões de fontes
             ) {
-                return route.abort()
+                return route.abort();
             }
         
-            return route.continue()
-        })
-
+            return route.continue();
+        });
+        
         // Set timeout to preferred amount
         context.setDefaultTimeout(this.bot.utils.stringToMs(this.bot.config?.globalTimeout ?? 30000))
 
