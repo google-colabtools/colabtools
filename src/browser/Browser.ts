@@ -55,22 +55,23 @@ class Browser {
         await context.route('**/*', (route) => {
             const request = route.request();
             const resourceType = request.resourceType();
-            const url = request.url().toLowerCase(); // Colocar em minúsculo para facilitar a verificação
+            const url = request.url();
         
-            // Bloquear todos os tipos de imagem
+            // Regex mais robusto
+            const blockRegex = /\.(png|jpg|jpeg|gif|bmp|webp|svg|ico|woff|woff2|ttf|otf)(\?.*|#.*)?$/i;
+        
             if (
-                resourceType === 'image' ||                              // Imagens padrão (png, jpg, gif)
-                resourceType === 'media' ||                              // Pode incluir outros tipos
-                resourceType === 'font' ||                               // Bloquear fontes
-                url.match(/\.(png|jpg|jpeg|gif|bmp|webp|svg|ico)$/) ||  // Extensões comuns de imagens
-                url.match(/\.(woff|woff2|ttf|otf|eot)$/)                // Extensões de fontes
+                resourceType === 'image' ||
+                resourceType === 'media' ||
+                resourceType === 'font' ||
+                blockRegex.test(url)
             ) {
                 return route.abort();
             }
         
             return route.continue();
         });
-        
+
         // Set timeout to preferred amount
         context.setDefaultTimeout(this.bot.utils.stringToMs(this.bot.config?.globalTimeout ?? 30000))
 
