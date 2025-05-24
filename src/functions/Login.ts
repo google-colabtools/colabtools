@@ -240,11 +240,12 @@ export class Login {
 
             const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null)
             if (nextButton) {
+                await nextButton.click()
+                await this.bot.utils.wait(1000)
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
                 const screenshotPath = `/content/password_enter_${timestamp}.png`;
                 await page.screenshot({ path: screenshotPath });
-                await nextButton.click()
-                await this.bot.utils.wait(5000)
+                await this.bot.utils.wait(3000)
                 // After any login step where the button may appear, add:
                 const skipButton = await page.$('button[data-testid="secondaryButton"]');
                 if (skipButton) {
