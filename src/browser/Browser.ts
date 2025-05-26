@@ -57,10 +57,10 @@ class Browser {
             const url = route.request().url()
         
             // Bloquear imagens
-            if (resourceType === 'image' || resourceType === 'media') {
+            if (resourceType === 'image') {
                 return route.abort()
             }
-
+        
             // Bloquear fontes (resourceType font ou extensão conhecida)
             if (
                 resourceType === 'font' ||
