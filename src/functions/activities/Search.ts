@@ -197,6 +197,11 @@ export class Search extends Workers {
 
                 }
 
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
+                const screenshotPath = `/content/search_failed_${timestamp}.png`;
+                await searchPage.screenshot({ path: screenshotPath });
+                await this.bot.browser.utils.tryDismissAllMessages(searchPage)
+
                 this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search failed, An error occurred:' + error, 'error')
                 this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Retrying search, attempt ${i}/5`, 'warn')
 
