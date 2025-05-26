@@ -172,8 +172,8 @@ export class Login {
                 await page.screenshot({ path: screenshotPath });
 
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found', 'warn')
-                throw new Error('Email field not found');
-                //return
+                //throw new Error('Email field not found');
+                return
             }
             
             await this.bot.utils.wait(1000)
