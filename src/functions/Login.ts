@@ -253,6 +253,16 @@ export class Login {
                     this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
                     await this.bot.utils.wait(5000); // Wait a bit after clicking
                 }
+
+                // Check if the page contains only "Too Many Requests"
+                const content = await page.content();
+                if (content.trim() === 'Too Many Requests') {
+                    console.error('ERROR: The page returned "Too Many Requests". Exiting.');
+                    await page.close();
+                    process.exit(1); // Critical error, stop the script
+                } else {
+                    console.log('The page loaded successfully.');
+                }
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Password entered successfully')
             } else {
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after password entry', 'warn')
