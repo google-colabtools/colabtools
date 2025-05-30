@@ -5,7 +5,7 @@ export class LogTimeoutMonitor {
     private timeoutMs: number;
     private timeoutHandle: NodeJS.Timeout | null;
     
-    constructor(timeoutMinutes: number = 30) {
+    constructor(timeoutMinutes: number = 15) {
         this.lastActivityTime = Date.now();
         this.timeoutMs = timeoutMinutes * 60 * 1000;
         this.timeoutHandle = null;
