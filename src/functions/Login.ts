@@ -254,9 +254,11 @@ export class Login {
                     await this.bot.utils.wait(5000); // Wait a bit after clicking
                 }
 
-                // Check if the page contains only "Too Many Requests"
-                const content = await page.content();
-                if (content.trim() === 'Too Many Requests') {
+                // Get the plain text content of the body
+                const bodyText = await page.evaluate(() => document.body.innerText.trim());
+
+                // Check if the text contains "Too Many Requests"
+                if (bodyText.includes('Too Many Requests')) {
                     console.error('ERROR: The page returned "Too Many Requests". Exiting.');
                     await page.close();
                     process.exit(1); // Critical error, stop the script
