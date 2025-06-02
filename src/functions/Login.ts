@@ -247,12 +247,22 @@ export class Login {
                 await page.screenshot({ path: screenshotPath });
                 await this.bot.utils.wait(3000)
                 // After any login step where the button may appear, add:
-                const skipButton = await page.$('button[data-testid="secondaryButton"]');
-                if (skipButton) {
-                    await skipButton.click();
-                    this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
-                    await this.bot.utils.wait(5000); // Wait a bit after clicking
-                }
+                let skipButtonFound = false;
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    const skipButton = await page.$('button[data-testid="secondaryButton"]');
+                    if (skipButton) {
+                        skipButtonFound = true;
+                        await skipButton.click();
+                        this.bot.log(this.bot.isMobile, 'LOGIN', `"Skip for now" button found and clicked (attempt ${attempt}).`);
+                        await this.bot.utils.wait(5000); // Espera antes de tentar novamente
+                    } else if (!skipButtonFound) {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', `"Skip for now" button not found on first attempt, stopping further attempts.`);
+                        break;
+                    } else {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', `"No more 'Skip for now' button found after ${attempt - 1} clicks. Stopping.`);
+                        break;
+                    }
+                }                
 
                 // Get the plain text content of the body
                 const bodyText = await page.evaluate(() => document.body.innerText.trim());
