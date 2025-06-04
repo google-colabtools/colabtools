@@ -198,7 +198,7 @@ export class Search extends Workers {
                 }
 
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
-                const screenshotPath = `/content/search_failed_${timestamp}.png`;
+                const screenshotPath = `./search_failed_${timestamp}.png`;
                 await searchPage.screenshot({ path: screenshotPath });
                 await this.bot.browser.utils.tryDismissAllMessages(searchPage)
 
