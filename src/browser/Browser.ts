@@ -26,7 +26,7 @@ class Browser {
 
     async createBrowser(proxy: AccountProxy, email: string): Promise<BrowserContext> {
         const browser = await playwright.chromium.launch({
-            executablePath: '/content/thorium-browser/thorium',
+            executablePath: '/usr/bin/thorium-browser',
             headless: this.bot.config.headless,
             ...(proxy.url && { proxy: { username: proxy.username, password: proxy.password, server: `${proxy.url}:${proxy.port}` } }),
             args: [
