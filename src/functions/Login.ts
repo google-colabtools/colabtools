@@ -1,406 +1,508 @@
 import { Page } from 'rebrowser-playwright'
-import { platform } from 'os'
-
-import { Workers } from '../Workers'
-
-import { Counters, DashboardData } from '../../interface/DashboardData'
-import { GoogleSearch } from '../../interface/Search'
+import readline from 'readline'
+import * as crypto from 'crypto'
 import { AxiosRequestConfig } from 'axios'
 
-type GoogleTrendsResponse = [
-    string,
-    [
-        string,
-        ...null[],
-        [string, ...string[]]
-    ][]
-];
+import { MicrosoftRewardsBot } from '../index'
+import { saveSessionData } from '../util/Load'
 
-export class Search extends Workers {
-    private bingHome = 'https://bing.com'
-    private searchPageURL = ''
+import { OAuth } from '../interface/OAuth'
 
-    public async doSearch(page: Page, data: DashboardData) {
-        this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Starting Bing searches')
 
-        page = await this.bot.browser.utils.getLatestTab(page)
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+})
 
-        let searchCounters: Counters = await this.bot.browser.func.getSearchPoints()
-        let missingPoints = this.calculatePoints(searchCounters)
+export class Login {
+    private bot: MicrosoftRewardsBot
+    private clientId: string = '0000000040170455'
+    private authBaseUrl: string = 'https://login.live.com/oauth20_authorize.srf'
+    private redirectUrl: string = 'https://login.live.com/oauth20_desktop.srf'
+    private tokenUrl: string = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token'
+    private scope: string = 'service::prod.rewardsplatform.microsoft.com::MBI_SSL'
 
-        if (missingPoints === 0) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Bing searches have already been completed')
-            return
-        }
+    constructor(bot: MicrosoftRewardsBot) {
+        this.bot = bot
+    }
 
-        // Generate search queries
-        let googleSearchQueries = await this.getGoogleTrends(this.bot.config.searchSettings.useGeoLocaleQueries ? data.userProfile.attributes.country : 'US')
-        googleSearchQueries = this.bot.utils.shuffleArray(googleSearchQueries)
+    async login(page: Page, email: string, password: string) {
+        const maxRetries = 1;
+        const retryDelay = 30000; // 30 seconds
+        let lastError: any;
 
-        // Deduplicate the search terms
-        googleSearchQueries = [...new Set(googleSearchQueries)]
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                // Navigate to the Bing login page
+                await page.goto('https://rewards.bing.com/signin')
 
-        // Go to bing
-        await page.goto(this.searchPageURL ? this.searchPageURL : this.bingHome)
+                await page.waitForLoadState('domcontentloaded').catch(() => { })
 
-        await this.bot.utils.wait(2000)
+                await this.bot.browser.utils.reloadBadPage(page)
 
-        await this.bot.browser.utils.tryDismissAllMessages(page)
+                // Check if account is locked
+                await this.checkAccountLocked(page)
 
-        let maxLoop = 0 // If the loop hits 10 this when not gaining any points, we're assuming it's stuck. If it doesn't continue after 5 more searches with alternative queries, abort search
+                // After any login step where the button may appear, add:
+                const skipButton = await page.$('button[data-testid="secondaryButton"]');
+                if (skipButton) {
+                    await skipButton.click();
+                    this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
+                    await this.bot.utils.wait(5000); // Wait a bit after clicking
+                    await page.goto('https://rewards.bing.com/signin')
+                    await page.waitForLoadState('domcontentloaded').catch(() => { })
+                    await this.bot.browser.utils.reloadBadPage(page)
+                }
 
-        const queries: string[] = []
-        // Mobile search doesn't seem to like related queries?
-        googleSearchQueries.forEach(x => { this.bot.isMobile ? queries.push(x.topic) : queries.push(x.topic, ...x.related) })
+                const isLoggedInTest = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
 
-        // Loop over Google search queries
-        for (let i = 0; i < queries.length; i++) {
-            const query = queries[i] as string
+                if (!isLoggedInTest) {
+                    await page.goto('https://rewards.bing.com/signin')
+                    await page.waitForLoadState('domcontentloaded').catch(() => { })
+                    await this.bot.browser.utils.reloadBadPage(page)
+                    // Check if account is locked
+                    await this.checkAccountLocked(page)
+                }
+                
+                const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
+                if (!isLoggedIn) {
+                    await this.execLogin(page, email, password)
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged into Microsoft successfully')
+                } else {
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in')
 
-            this.bot.log(this.bot.isMobile, 'SEARCH-BING', `${missingPoints} Points Remaining | Query: ${query}`)
+                    // Check if account is locked
+                    await this.checkAccountLocked(page);
 
-            searchCounters = await this.bingSearch(page, query)
-            const newMissingPoints = this.calculatePoints(searchCounters)
+                    const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10_000 })
+                        .then(() => true)
+                        .catch(() => false);
 
-            // If the new point amount is the same as before
-            if (newMissingPoints == missingPoints) {
-                maxLoop++ // Add to max loop
-            } else { // There has been a change in points
-                maxLoop = 0 // Reset the loop
-            }
+                    if (!isLoggedIn) {
+                        await this.execLogin(page, email, password);
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged into Microsoft successfully');
+                    } else {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Already logged in');
+                        await this.checkAccountLocked(page);
+                    }
+                }
 
-            missingPoints = newMissingPoints
+                // Check if logged in to bing
+                await this.checkBingLogin(page);
 
-            if (missingPoints === 0) {
-                break
-            }
+                // Save session
+                await saveSessionData(this.bot.config.sessionPath, page.context(), email, this.bot.isMobile);
 
-            // Only for mobile searches
-            if (maxLoop > 5 && this.bot.isMobile) {
-                this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search didn\'t gain point for 5 iterations, likely bad User-Agent', 'warn')
-                break
-            }
+                // We're done logging in
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged in successfully, saved login session!');
+                return; // 成功后直接返回
 
-            // If we didn't gain points for 10 iterations, assume it's stuck
-            if (maxLoop > 10) {
-                this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search didn\'t gain point for 10 iterations aborting searches', 'warn')
-                maxLoop = 0 // Reset to 0 so we can retry with related searches below
-                break
-            }
-        }
-
-        // Only for mobile searches
-        if (missingPoints > 0 && this.bot.isMobile) {
-            return
-        }
-
-        // If we still got remaining search queries, generate extra ones
-        if (missingPoints > 0) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Search completed but we're missing ${missingPoints} points, generating extra searches`)
-
-            let i = 0
-            while (missingPoints > 0) {
-                const query = googleSearchQueries[i++] as GoogleSearch
-
-                // Get related search terms to the Google search queries
-                const relatedTerms = await this.getRelatedTerms(query?.topic)
-                if (relatedTerms.length > 3) {
-                    // Search for the first 2 related terms
-                    for (const term of relatedTerms.slice(1, 3)) {
-                        this.bot.log(this.bot.isMobile, 'SEARCH-BING-EXTRA', `${missingPoints} Points Remaining | Query: ${term}`)
-
-                        searchCounters = await this.bingSearch(page, term)
-                        const newMissingPoints = this.calculatePoints(searchCounters)
-
-                        // If the new point amount is the same as before
-                        if (newMissingPoints == missingPoints) {
-                            maxLoop++ // Add to max loop
-                        } else { // There has been a change in points
-                            maxLoop = 0 // Reset the loop
-                        }
-
-                        missingPoints = newMissingPoints
-
-                        // If we satisfied the searches
-                        if (missingPoints === 0) {
-                            break
-                        }
-
-                        // Try 5 more times, then we tried a total of 15 times, fair to say it's stuck
-                        if (maxLoop > 5) {
-                            this.bot.log(this.bot.isMobile, 'SEARCH-BING-EXTRA', 'Search didn\'t gain point for 5 iterations aborting searches', 'warn')
-                            return
-                        }
+            } catch (error) {
+                lastError = error;
+                if (attempt < maxRetries) {
+                    this.bot.log(
+                        this.bot.isMobile, 
+                        'LOGIN', 
+                        `Login attempt ${attempt} failed: ${error}. Retrying in ${retryDelay/1000}s...`, 
+                        'warn'
+                    );
+                    // 重试前等待
+                    await this.bot.utils.wait(retryDelay);
+                    
+                    // 尝试清理页面状态
+                    try {
+                        await page.reload({ waitUntil: 'domcontentloaded' });
+                    } catch (e) {
+                        // 忽略重载错误
                     }
                 }
             }
         }
 
-        this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Completed searches')
+        // 所有重试都失败了，抛出最后一个错误
+        throw this.bot.log(this.bot.isMobile, 'LOGIN', `Failed after ${maxRetries} attempts. Last error: ${lastError}`, 'error');
     }
 
-    private async bingSearch(searchPage: Page, query: string) {
-        const platformControlKey = platform() === 'darwin' ? 'Meta' : 'Control'
+    private async execLogin(page: Page, email: string, password: string) {
+        try {
+            await this.enterEmail(page, email)
+            await this.bot.utils.wait(2000)
+            await this.bot.browser.utils.reloadBadPage(page)
+            await this.bot.utils.wait(2000)
+            await this.enterPassword(page, password)
+            await this.bot.utils.wait(2000)
 
-        // Try a max of 5 times
-        for (let i = 0; i < 5; i++) {
-            try {
-                // This page had already been set to the Bing.com page or the previous search listing, we just need to select it
-                searchPage = await this.bot.browser.utils.getLatestTab(searchPage)
+            // Check if account is locked
+            await this.checkAccountLocked(page)
 
-                // Go to top of the page
-                await searchPage.evaluate(() => {
-                    window.scrollTo(0, 0)
-                })
+            await this.bot.browser.utils.reloadBadPage(page)
+            await this.checkLoggedIn(page)
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'LOGIN', 'An error occurred: ' + error, 'error')
+        }
+    }
 
-                await this.bot.utils.wait(500)
+    private async enterEmail(page: Page, email: string) {
+        const emailInputSelector = 'input[type="email"]'
+    
+        try {   
 
-                const searchBar = '#sb_form_q'
-                await searchPage.waitForSelector(searchBar, { state: 'visible', timeout: 10000 })
-                await searchPage.click(searchBar) // Focus on the textarea
-                await this.bot.utils.wait(500)
-                await searchPage.keyboard.down(platformControlKey)
-                await searchPage.keyboard.press('A')
-                await searchPage.keyboard.press('Backspace')
-                await searchPage.keyboard.up(platformControlKey)
-                await searchPage.keyboard.type(query)
-                await searchPage.keyboard.press('Enter')
+            const isLoggedInTest = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
 
-                await this.bot.utils.wait(3000)
-
-                // Bing.com in Chrome opens a new tab when searching
-                const resultPage = await this.bot.browser.utils.getLatestTab(searchPage)
-                this.searchPageURL = new URL(resultPage.url()).href // Set the results page
-
-                await this.bot.browser.utils.reloadBadPage(resultPage)
-                await this.bot.browser.utils.tryDismissAllMessages(resultPage)
-
-                if (this.bot.config.searchSettings.scrollRandomResults) {
-                    await this.bot.utils.wait(2000)
-                    await this.randomScroll(resultPage)
-                }
-
-                if (this.bot.config.searchSettings.clickRandomResults) {
-                    await this.bot.utils.wait(2000)
-                    await this.clickRandomLink(resultPage)
-                }
-
-                // Delay between searches
-                await this.bot.utils.wait(Math.floor(this.bot.utils.randomNumber(this.bot.utils.stringToMs(this.bot.config.searchSettings.searchDelay.min), this.bot.utils.stringToMs(this.bot.config.searchSettings.searchDelay.max))))
-
-                return await this.bot.browser.func.getSearchPoints()
-
-            } catch (error) {
-                if (i === 5) {
-                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Failed after 5 retries... An error occurred:' + error, 'error')
-                    break
-
-                }
-
+            if (!isLoggedInTest) {
+                await page.goto('https://rewards.bing.com/signin')
+                await page.waitForLoadState('domcontentloaded').catch(() => { })
+                await this.bot.browser.utils.reloadBadPage(page)
+                // Check if account is locked
+                await this.checkAccountLocked(page)
+            }            
+            // Verifica se já está logado antes de qualquer ação
+            const alreadyLoggedIn = await page.$('html[data-role-name="RewardsPortal"]')
+            if (alreadyLoggedIn) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Detected already logged in (via RewardsPortal selector). Skipping email entry.')
+                return
+            }
+            
+            // Wait for email field
+            const emailField = await page.waitForSelector(emailInputSelector, { state: 'visible', timeout: 2000 }).catch(() => null)
+            if (!emailField) {
+                //screenshot
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
-                const screenshotPath = `./search_failed_${timestamp}.png`;
-                await searchPage.screenshot({ path: screenshotPath });
-                await this.bot.browser.utils.tryDismissAllMessages(searchPage)
+                const screenshotPath = `./email_field_${timestamp}.png`;
+                await page.screenshot({ path: screenshotPath });
 
-                this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search failed, An error occurred:' + error, 'error')
-                this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Retrying search, attempt ${i}/5`, 'warn')
-
-                // Reset the tabs
-                const lastTab = await this.bot.browser.utils.getLatestTab(searchPage)
-                await this.closeTabs(lastTab)
-
-                await this.bot.utils.wait(4000)
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email field not found', 'warn')
+                //throw new Error('Email field not found');
+                return
             }
-        }
-
-        this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search failed after 5 retries, ending', 'error')
-        return await this.bot.browser.func.getSearchPoints()
-    }
-
-    private async getGoogleTrends(geoLocale: string = 'US'): Promise<GoogleSearch[]> {
-        const queryTerms: GoogleSearch[] = []
-        this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', `Generating search queries, can take a while! | GeoLocale: ${geoLocale}`)
-
-        try {
-            const request: AxiosRequestConfig = {
-                url: 'https://trends.google.com/_/TrendsUi/data/batchexecute',
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
-                },
-                data: `f.req=[[[i0OFE,"[null, null, \\"${geoLocale.toUpperCase()}\\", 0, null, 48]"]]]`
-            }
-
-            const response = await this.bot.axios.request(request, this.bot.config.proxy.proxyGoogleTrends)
-            const rawText = response.data
-
-            const trendsData = this.extractJsonFromResponse(rawText)
-            if (!trendsData) {
-               throw  this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Failed to parse Google Trends response', 'error')
-            }
-
-            const mappedTrendsData = trendsData.map(query => [query[0], query[9]!.slice(1)])
-            if (mappedTrendsData.length < 90) {
-                this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'Insufficient search queries, falling back to US', 'warn')
-                return this.getGoogleTrends()
-            }
-
-            for (const [topic, relatedQueries] of mappedTrendsData) {
-                queryTerms.push({
-                    topic: topic as string,
-                    related: relatedQueries as string[]
-                })
-            }
-
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', 'An error occurred:' + error, 'error')
-        }
-
-        return queryTerms
-    }
-
-    private extractJsonFromResponse(text: string): GoogleTrendsResponse[1] | null {
-        const lines = text.split('\n')
-        for (const line of lines) {
-            const trimmed = line.trim()
-            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-                try {
-                    return JSON.parse(JSON.parse(trimmed)[0][2])[1]
-                } catch {
-                    continue
-                }
-            }
-        }
-
-        return null
-    }
-
-    private async getRelatedTerms(term: string): Promise<string[]> {
-        try {
-            const request = {
-                url: `https://api.bing.com/osjson.aspx?query=${term}`,
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            }
-
-            const response = await this.bot.axios.request(request, this.bot.config.proxy.proxyBingTerms)
-
-            return response.data[1] as string[]
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-BING-RELATED', 'An error occurred:' + error, 'error')
-        }
-
-        return []
-    }
-
-    private async randomScroll(page: Page) {
-        try {
-            const viewportHeight = await page.evaluate(() => window.innerHeight)
-            const totalHeight = await page.evaluate(() => document.body.scrollHeight)
-            const randomScrollPosition = Math.floor(Math.random() * (totalHeight - viewportHeight))
-
-            await page.evaluate((scrollPos) => {
-                window.scrollTo(0, scrollPos)
-            }, randomScrollPosition)
-
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-SCROLL', 'An error occurred:' + error, 'error')
-        }
-    }
-
-    private async clickRandomLink(page: Page) {
-        try {
-            await page.click('#b_results .b_algo h2', { timeout: 2000 }).catch(() => { }) // Since we don't really care if it did it or not
-
-            // Only used if the browser is not the edge browser (continue on Edge popup)
-            await this.closeContinuePopup(page)
-
-            // Stay for 10 seconds for page to load and "visit"
-            await this.bot.utils.wait(10000)
-
-            // Will get current tab if no new one is created, this will always be the visited site or the result page if it failed to click
-            let lastTab = await this.bot.browser.utils.getLatestTab(page)
-
-            let lastTabURL = new URL(lastTab.url()) // Get new tab info, this is the website we're visiting
-
-            // Check if the URL is different from the original one, don't loop more than 5 times.
-            let i = 0
-            while (lastTabURL.href !== this.searchPageURL && i < 5) {
-
-                await this.closeTabs(lastTab)
-
-                // End of loop, refresh lastPage
-                lastTab = await this.bot.browser.utils.getLatestTab(page) // Finally update the lastTab var again
-                lastTabURL = new URL(lastTab.url()) // Get new tab info
-                i++
-            }
-
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'An error occurred:' + error, 'error')
-        }
-    }
-
-    private async closeTabs(lastTab: Page) {
-        const browser = lastTab.context()
-        const tabs = browser.pages()
-
-        try {
-            if (tabs.length > 2) {
-                // If more than 2 tabs are open, close the last tab
-
-                await lastTab.close()
-                this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', `More than 2 were open, closed the last tab: "${new URL(lastTab.url()).host}"`)
-
-            } else if (tabs.length === 1) {
-                // If only 1 tab is open, open a new one to search in
-
-                const newPage = await browser.newPage()
-                await this.bot.utils.wait(1000)
-
-                await newPage.goto(this.bingHome)
-                await this.bot.utils.wait(3000)
-                this.searchPageURL = newPage.url()
-
-                this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'There was only 1 tab open, crated a new one')
+            
+            await this.bot.utils.wait(1000)
+    
+            // Check if email is prefilled
+            const emailPrefilled = await page.waitForSelector('#userDisplayName', { timeout: 5000 }).catch(() => null)
+            if (emailPrefilled) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email already prefilled by Microsoft')
             } else {
-                // Else reset the last tab back to the search listing or Bing.com
-
-                lastTab = await this.bot.browser.utils.getLatestTab(lastTab)
-                await lastTab.goto(this.searchPageURL ? this.searchPageURL : this.bingHome)
+                // Else clear and fill email
+                await page.fill(emailInputSelector, '')
+                await this.bot.utils.wait(500)
+                await page.fill(emailInputSelector, email)
+                await this.bot.utils.wait(1000)
             }
-
+    
+            const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null)
+            if (nextButton) {
+                await nextButton.click()
+                await this.bot.utils.wait(2000)
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Email entered successfully')
+            } else {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after email entry', 'warn')
+            }
+    
         } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-CLOSE-TABS', 'An error occurred:' + error, 'error')
+            this.bot.log(this.bot.isMobile, 'LOGIN', `Email entry failed: ${error}`, 'error')
+            // Lança novamente para garantir que suba até login()
+            throw error
         }
-
     }
 
-    private calculatePoints(counters: Counters) {
-        const mobileData = counters.mobileSearch?.[0] // Mobile searches
-        const genericData = counters.pcSearch?.[0] // Normal searches
-        const edgeData = counters.pcSearch?.[1] // Edge searches
-
-        const missingPoints = (this.bot.isMobile && mobileData)
-            ? mobileData.pointProgressMax - mobileData.pointProgress
-            : (edgeData ? edgeData.pointProgressMax - edgeData.pointProgress : 0)
-            + (genericData ? genericData.pointProgressMax - genericData.pointProgress : 0)
-
-        return missingPoints
-    }
-
-    private async closeContinuePopup(page: Page) {
+    private async enterPassword(page: Page, password: string) {
+        const passwordInputSelector = 'input[type="password"]'
+        
         try {
-            await page.waitForSelector('#sacs_close', { timeout: 1000 })
-            const continueButton = await page.$('#sacs_close')
-
-            if (continueButton) {
-                await continueButton.click()
+            const alreadyLoggedIn = await page.$('html[data-role-name="RewardsPortal"]')
+            if (alreadyLoggedIn) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Detected already logged in (via RewardsPortal selector). Skipping password entry.')
+                return
             }
+            const UsePasswordButton = await page.$('span[role="button"]:has-text("Use your password")');
+            if (UsePasswordButton) {
+                await UsePasswordButton.click();
+                this.bot.log(this.bot.isMobile, 'LOGIN', '"Use your password" button clicked successfully');
+            }
+
+            await this.bot.utils.wait(5000)
+
+            const passwordField = await page.waitForSelector(passwordInputSelector, { state: 'visible', timeout: 5000 }).catch(() => null)
+            if (!passwordField) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Password field not found, possibly 2FA required', 'warn')
+                await this.handle2FA(page)
+                return
+            }
+
+            await this.bot.utils.wait(1000)
+
+            // Clear and fill password
+            await page.fill(passwordInputSelector, '')
+            await this.bot.utils.wait(500)
+            await page.fill(passwordInputSelector, password)
+            await this.bot.utils.wait(1000)
+
+            const nextButton = await page.waitForSelector('button[type="submit"]', { timeout: 2000 }).catch(() => null)
+            if (nextButton) {
+                await nextButton.click()
+                await this.bot.utils.wait(1000)
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
+                const screenshotPath = `./password_enter_${timestamp}.png`;
+                await page.screenshot({ path: screenshotPath });
+                await this.bot.utils.wait(3000)
+                // After any login step where the button may appear, add:
+                let skipButtonFound = false;
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    const skipButton = await page.$('button[data-testid="secondaryButton"]');
+                    if (skipButton) {
+                        skipButtonFound = true;
+                        await skipButton.click();
+                        this.bot.log(this.bot.isMobile, 'LOGIN', `"Skip for now" button found and clicked (attempt ${attempt}).`);
+                        await this.bot.utils.wait(5000); // Espera antes de tentar novamente
+                    } else if (!skipButtonFound) {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', `"Skip for now" button not found on first attempt, stopping further attempts.`);
+                        break;
+                    } else {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', `"No more 'Skip for now' button found after ${attempt - 1} clicks. Stopping.`);
+                        break;
+                    }
+                }                
+
+                // Get the plain text content of the body
+                const bodyText = await page.evaluate(() => document.body.innerText.trim());
+
+                // Check if the text contains "Too Many Requests"
+                if (bodyText.includes('Too Many Requests')) {
+                    console.error('ERROR: The page returned "Too Many Requests". Exiting.');
+                    await page.close();
+                    process.exit(1); // Critical error, stop the script
+                } else {
+                    console.log('The page loaded successfully.');
+                }
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Password entered successfully')
+            } else {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Next button not found after password entry', 'warn')
+            }
+
         } catch (error) {
-            // Continue if element is not found or other error occurs
+            this.bot.log(this.bot.isMobile, 'LOGIN', `Password entry failed: ${error}`, 'error')
+            await this.handle2FA(page)
         }
     }
 
+    private async handle2FA(page: Page) {
+        try {
+            const numberToPress = await this.get2FACode(page)
+            if (numberToPress) {
+                // Authentictor App verification
+                await this.authAppVerification(page, numberToPress)
+            } else {
+                // SMS verification
+                await this.authSMSVerification(page)
+            }
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'LOGIN', `2FA handling failed: ${error}`)
+        }
+    }
+
+    private async get2FACode(page: Page): Promise<string | null> {
+        try {
+            const element = await page.waitForSelector('#displaySign, div[data-testid="displaySign"]>span', { state: 'visible', timeout: 2000 })
+            return await element.textContent()
+        } catch {
+            if (this.bot.config.parallel) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Script running in parallel, can only send 1 2FA request per account at a time!', 'log', 'yellow')
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Trying again in 60 seconds! Please wait...', 'log', 'yellow')
+
+                // eslint-disable-next-line no-constant-condition
+                while (true) {
+                    const button = await page.waitForSelector('button[aria-describedby="pushNotificationsTitle errorDescription"]', { state: 'visible', timeout: 2000 }).catch(() => null)
+                    if (button) {
+                        await this.bot.utils.wait(60000)
+                        await button.click()
+
+                        continue
+                    } else {
+                        break
+                    }
+                }
+            }
+
+            await page.click('button[aria-describedby="confirmSendTitle"]').catch(() => { })
+            await this.bot.utils.wait(2000)
+            const element = await page.waitForSelector('#displaySign, div[data-testid="displaySign"]>span', { state: 'visible', timeout: 2000 })
+            return await element.textContent()
+        }
+    }
+
+    private async authAppVerification(page: Page, numberToPress: string | null) {
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            try {
+                this.bot.log(this.bot.isMobile, 'LOGIN', `Press the number ${numberToPress} on your Authenticator app to approve the login`)
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'If you press the wrong number or the "DENY" button, try again in 60 seconds')
+
+                await page.waitForSelector('form[name="f1"]', { state: 'detached', timeout: 60000 })
+
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Login successfully approved!')
+                break
+            } catch {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'The code is expired. Trying to get a new code...')
+                await page.click('button[aria-describedby="pushNotificationsTitle errorDescription"]')
+                numberToPress = await this.get2FACode(page)
+            }
+        }
+    }
+
+    private async authSMSVerification(page: Page) {
+        this.bot.log(this.bot.isMobile, 'LOGIN', 'SMS 2FA code required. Waiting for user input...')
+
+        const code = await new Promise<string>((resolve) => {
+            rl.question('Enter 2FA code:\n', (input: string | PromiseLike<string>) => {
+                rl.close()
+                resolve(input)
+            })
+        })
+
+        await page.fill('input[name="otc"]', code)
+        await page.keyboard.press('Enter')
+        this.bot.log(this.bot.isMobile, 'LOGIN', '2FA code entered successfully')
+    }
+
+    private async checkLoggedIn(page: Page) {
+        const targetHostname = 'rewards.bing.com'
+        const targetPathname = '/'
+
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            const skipButton = await page.$('button[data-testid="secondaryButton"]');
+            if (skipButton) {
+                await skipButton.click();
+                this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
+                await this.bot.utils.wait(5000); // Wait a bit after clicking
+            }
+            await this.bot.browser.utils.tryDismissAllMessages(page)
+            const currentURL = new URL(page.url())
+            if (currentURL.hostname === targetHostname && currentURL.pathname === targetPathname) {
+                break
+            }
+        }
+
+        // Wait for login to complete
+        await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 })
+        this.bot.log(this.bot.isMobile, 'LOGIN', 'Successfully logged into the rewards portal')
+    }
+
+    private async checkBingLogin(page: Page): Promise<void> {
+        try {
+            this.bot.log(this.bot.isMobile, 'LOGIN-BING', 'Verifying Bing login');
+    
+            await page.goto('https://www.bing.com/fd/auth/signin?action=interactive&provider=windows_live_id&return_url=https%3A%2F%2Fwww.bing.com%2F');
+            await page.waitForLoadState('load'); // Aguarda a página carregar totalmente
+    
+            const maxIterations = 5;
+            await this.bot.utils.wait(1000);
+    
+            for (let iteration = 1; iteration <= maxIterations; iteration++) {
+                const currentUrl = new URL(page.url());
+    
+                if (currentUrl.hostname === 'www.bing.com' && currentUrl.pathname === '/') {
+                    const skipButton = await page.$('button[data-testid="secondaryButton"]');
+                    if (skipButton) {
+                        await skipButton.click();
+                        this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
+                        await this.bot.utils.wait(5000); // Wait a bit after clicking
+                    }
+                    await this.bot.browser.utils.tryDismissAllMessages(page);
+                    await this.bot.utils.wait(1000);
+    
+                    try {
+                        // Aguarda o botão aparecer, com timeout de 3 segundos
+                        await page.waitForSelector('#bnp_btn_accept a', { timeout: 3000 });
+                        const acceptButton = await page.$('#bnp_btn_accept a');
+                        if (acceptButton) {
+                            await acceptButton.click();
+                            this.bot.log(this.bot.isMobile, 'LOGIN', '"Accept" button from Bing Cookie Banner clicked successfully');
+                            await this.bot.utils.wait(3000);
+                        }
+                    } catch {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'No cookie banner to accept (or not visible).');
+                    }
+    
+                    const loggedIn = await this.checkBingLoginStatus(page);
+                    if (loggedIn || this.bot.isMobile) {
+                        this.bot.log(this.bot.isMobile, 'LOGIN-BING', 'Bing login verification passed!');
+                        break;
+                    }
+                }
+    
+                await this.bot.utils.wait(1000);
+            }
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'LOGIN-BING', 'An error occurred: ' + error, 'error');
+        }
+    }
+    
+
+    private async checkBingLoginStatus(page: Page): Promise<boolean> {
+        try {
+            await page.waitForSelector('#id_n', { timeout: 5000 })
+            return true
+        } catch (error) {
+            return false
+        }
+    }
+
+    async getMobileAccessToken(page: Page, email: string) {
+        const authorizeUrl = new URL(this.authBaseUrl)
+
+        authorizeUrl.searchParams.append('response_type', 'code')
+        authorizeUrl.searchParams.append('client_id', this.clientId)
+        authorizeUrl.searchParams.append('redirect_uri', this.redirectUrl)
+        authorizeUrl.searchParams.append('scope', this.scope)
+        authorizeUrl.searchParams.append('state', crypto.randomBytes(16).toString('hex'))
+        authorizeUrl.searchParams.append('access_type', 'offline_access')
+        authorizeUrl.searchParams.append('login_hint', email)
+
+        await page.goto(authorizeUrl.href)
+
+        let currentUrl = new URL(page.url())
+        let code: string
+        this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            if (currentUrl.hostname === 'login.live.com' && currentUrl.pathname === '/oauth20_desktop.srf') {
+                code = currentUrl.searchParams.get('code')!
+                break
+            }
+
+            currentUrl = new URL(page.url())
+            await this.bot.utils.wait(5000)
+        }
+
+        const body = new URLSearchParams()
+        body.append('grant_type', 'authorization_code')
+        body.append('client_id', this.clientId)
+        body.append('code', code)
+        body.append('redirect_uri', this.redirectUrl)
+
+        const tokenRequest: AxiosRequestConfig = {
+            url: this.tokenUrl,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            data: body.toString()
+        }
+
+        const tokenResponse = await this.bot.axios.request(tokenRequest)
+        const tokenData: OAuth = await tokenResponse.data
+
+        this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Successfully authorized')
+        return tokenData.access_token
+    }
+    
+    private async checkAccountLocked(page: Page) {
+        await this.bot.utils.wait(2000)
+        const isLocked = await page.waitForSelector('#serviceAbuseLandingTitle', { state: 'visible', timeout: 1000 }).then(() => true).catch(() => false)
+        if (isLocked) {
+            throw this.bot.log(this.bot.isMobile, 'CHECK-LOCKED', 'This account has been locked! Remove the account from "accounts.json" and restart!', 'error')
+        }
+    }
 }
