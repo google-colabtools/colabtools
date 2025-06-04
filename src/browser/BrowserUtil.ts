@@ -35,10 +35,6 @@ export default class BrowserUtil {
                 const element = button.isXPath ? page.locator(`xpath=${button.selector}`) : page.locator(button.selector)
                 await element.first().click({ timeout: 500 })
                 await page.waitForTimeout(500)
-                //screenshot
-                //const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
-                //const screenshotPath = `/content/dismissed_${timestamp}.png`;
-                //await page.screenshot({ path: screenshotPath });
                 
                 this.bot.log(this.bot.isMobile, 'DISMISS-ALL-MESSAGES', `Dismissed: ${button.label}`)
                 // 释放 element 引用
