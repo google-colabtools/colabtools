@@ -25,8 +25,27 @@ class Browser {
     }
 
     async createBrowser(proxy: AccountProxy, email: string): Promise<BrowserContext> {
+        const getBrowserPath = () => {
+        const thoriumPath = process.env.THORIUM_BIN;
+        const chromePath = process.env.CHROME_BIN;
+        const fallbackPath = '/usr/bin/thorium-browser';
+
+        if (thoriumPath && fs.existsSync(thoriumPath)) {
+            console.log(`Usando THORIUM_BIN: ${thoriumPath}`);
+            return thoriumPath;
+        }
+
+        if (chromePath && fs.existsSync(chromePath)) {
+            console.log(`THORIUM_BIN não encontrado. Usando CHROME_BIN: ${chromePath}`);
+            return chromePath;
+        }
+
+        console.log(`Nenhum dos envs encontrados ou válidos. Usando fallback: ${fallbackPath}`);
+        return fallbackPath;
+        };
+        
         const browser = await playwright.chromium.launch({
-            executablePath: '/usr/bin/thorium-browser',
+            executablePath: getBrowserPath(),
             headless: this.bot.config.headless,
             ...(proxy.url && { proxy: { username: proxy.username, password: proxy.password, server: `${proxy.url}:${proxy.port}` } }),
             args: [
