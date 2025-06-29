@@ -1,8 +1,13 @@
-import playwright, { BrowserContext } from 'rebrowser-playwright'
 
+// External
+import playwright, { BrowserContext } from 'rebrowser-playwright'
 import { newInjectedContext } from 'fingerprint-injector'
 import { FingerprintGenerator } from 'fingerprint-generator'
 
+// Built-in
+import * as fs from 'fs';
+
+// Internals
 import { MicrosoftRewardsBot } from '../index'
 import { loadSessionData, saveFingerprintData } from '../util/Load'
 import { updateFingerprintUserAgent } from '../util/UserAgent'
