@@ -1,0 +1,5 @@
+gradio
+dotenv
+flask
+python-dotenv
+gunicorn
