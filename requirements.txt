@@ -3,3 +3,4 @@ dotenv
 flask
 python-dotenv
 gunicorn
+psutil
