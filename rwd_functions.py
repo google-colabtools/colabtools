@@ -528,12 +528,12 @@ def copy_rewards_drive():
     
     print(f"🚀 Iniciando cópia de rewards:Rewards para {target}...")
     subprocess.run(
-        f"ricronus --config {BASEDIR}/ricronus.conf copy rewards:Rewards \"{target}\" --transfers 10 --fast-list --update",
+        f"ricronus --config {BASEDIR}/ricronus.conf copy rewards:Rewards \"{target}\" --transfers 10 --fast-list",
         shell=True
     )
 
     for letter in ['A', 'B', 'C', 'D', 'E']:
-        symlink_path = f"{BASEDIR}/colabtools_{letter}/dist/browser/sessions/"
+        symlink_path = f"{BASEDIR}/colabtools_{letter}/dist/browser/sessions"
         os.makedirs(os.path.dirname(symlink_path), exist_ok=True)
         
         # Remove o caminho anterior se já existir
