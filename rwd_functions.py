@@ -548,7 +548,7 @@ def copy_rewards_drive():
         print(f"🔗 Link simbólico criado: {symlink_path} ➝ {target}")
 
 def upload_rewards_drive():
-    target = f"{BASEDIR}/colabtools_shared/sessions/_0_STATUS/"
+    target = f"{BASEDIR}/colabtools_shared/sessions"
     
     print(f"🚀 Iniciando upload {target} rewards:Rewards ...")
     subprocess.run(
@@ -1065,7 +1065,7 @@ def create_completion_file(basedir, bot_account):
 
     try:
         # Construir o caminho do diretório e do arquivo
-        sessions_dir = os.path.join(basedir, "colabtools_shared", "sessions")
+        sessions_dir = os.path.join(basedir, "colabtools_shared", "sessions", "_0_STATUS")
         # Mudar a extensão para .json para refletir o formato
         file_path = os.path.join(sessions_dir, f"{bot_account}.json")
 
