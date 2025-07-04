@@ -4,8 +4,8 @@ import threading
 import requests
 import os, sys, time, re
 import json
-import time
 import shutil
+from datetime import datetime
 from huggingface_hub import HfApi
 from dotenv import load_dotenv
 
@@ -1052,6 +1052,59 @@ def send_discord_log_message(bot_account, message_content, discord_webhook_url_l
             
     except Exception as e:
         print(f"❌ Exceção ao enviar mensagem de log para o Discord: {str(e)}")
+
+def create_completion_file(basedir, bot_account):
+    """
+    Registra a conclusão da execução em um arquivo JSON.
+    Cada execução adiciona um novo registro ao arquivo, em vez de sobrescrevê-lo.
+    O arquivo é salvo em: basedir/colabtools_shared/sessions/bot_account.json
+    """
+    if not bot_account:
+        print("⚠️ Nome da conta do bot (BOT_ACCOUNT) não fornecido. Pulando a criação do arquivo de conclusão.")
+        return
+
+    try:
+        # Construir o caminho do diretório e do arquivo
+        sessions_dir = os.path.join(basedir, "colabtools_shared", "sessions")
+        # Mudar a extensão para .json para refletir o formato
+        file_path = os.path.join(sessions_dir, f"{bot_account}.json")
+
+        os.makedirs(sessions_dir, exist_ok=True)
+
+        # Carregar dados existentes ou iniciar uma lista vazia
+        records = []
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    records = json.load(f)
+                # Garante que 'records' seja uma lista
+                if not isinstance(records, list):
+                    print(f"⚠️ Arquivo de conclusão '{file_path}' não contém uma lista JSON. Será sobrescrito.")
+                    records = []
+            except json.JSONDecodeError:
+                print(f"⚠️ Erro ao decodificar JSON de '{file_path}'. O arquivo será sobrescrito.")
+                records = []
+
+        # Obter a data e hora local do sistema
+        now_local = datetime.now()
+
+        # Criar o novo registro com data e hora separadas
+        new_record = {
+            "data": now_local.strftime("%d/%m/%Y"),
+            "hora": now_local.strftime("%H:%M:%S")
+        }
+
+        # Adicionar o novo registro à lista
+        records.append(new_record)
+
+        # Salvar a lista atualizada de volta no arquivo
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(records, f, indent=4, ensure_ascii=False)
+            
+        print(f"✅ Registro de conclusão adicionado com sucesso em: {file_path}")
+
+    except Exception as e:
+        print(f"❌ Erro ao criar/atualizar o arquivo de conclusão: {e}")
 
 def stop_space(HF_TOKEN, SPACE_REPO_ID):
     api = HfApi(token=HF_TOKEN)

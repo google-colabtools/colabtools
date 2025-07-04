@@ -166,6 +166,8 @@ def run_bots():
         print("Iniciando bots...")
         rwd_functions.start_bots(DISCORD_WEBHOOK_URL_BR, DISCORD_WEBHOOK_URL_US, *selected_bots) # Saída principal ainda no console
         print("✅ Bots executados e encerrados.")
+        print("Criando arquivo de conclusão...")
+        rwd_functions.create_completion_file(BASEDIR, BOT_ACCOUNT)
         print("Fazendo upload de sessions para o google drive...")
         rwd_functions.upload_rewards_drive()
         rwd_functions.send_discord_log_message(BOT_ACCOUNT, "Execução finalizada, desligando Space.", DISCORD_WEBHOOK_URL_LOG)
