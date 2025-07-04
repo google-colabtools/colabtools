@@ -533,7 +533,7 @@ def copy_rewards_drive():
     )
 
     for letter in ['A', 'B', 'C', 'D', 'E']:
-        symlink_path = f"{BASEDIR}/colabtools_{letter}/dist/browser/sessions/_0_STATUS/"
+        symlink_path = f"{BASEDIR}/colabtools_{letter}/dist/browser/sessions/"
         os.makedirs(os.path.dirname(symlink_path), exist_ok=True)
         
         # Remove o caminho anterior se já existir
@@ -548,7 +548,7 @@ def copy_rewards_drive():
         print(f"🔗 Link simbólico criado: {symlink_path} ➝ {target}")
 
 def upload_rewards_drive():
-    target = f"{BASEDIR}/colabtools_shared/sessions"
+    target = f"{BASEDIR}/colabtools_shared/sessions/_0_STATUS/"
     
     print(f"🚀 Iniciando upload {target} rewards:Rewards ...")
     subprocess.run(
