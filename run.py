@@ -170,11 +170,11 @@ def run_bots():
         rwd_functions.create_completion_file(BASEDIR, BOT_ACCOUNT)
         print("Fazendo upload de sessions para o google drive...")
         rwd_functions.upload_rewards_drive()
-        rwd_functions.send_discord_log_message(BOT_ACCOUNT, "Execução finalizada, desligando Space.", DISCORD_WEBHOOK_URL_LOG)
-        rwd_functions.stop_space(HF_TOKEN, SPACE_REPO_ID)
     else:
         print("⚠️ Nenhum bot foi selecionado.")
-    
+
+    rwd_functions.send_discord_log_message(BOT_ACCOUNT, "Execução finalizada, desligando Space.", DISCORD_WEBHOOK_URL_LOG)
+    rwd_functions.stop_space(HF_TOKEN, SPACE_REPO_ID)
     print("🏁 Processo concluído.")
     time.sleep(60)
 
