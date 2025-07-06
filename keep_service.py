@@ -125,7 +125,7 @@ FILE_EXPLORER_TEMPLATE = """
         <h2>Arquivos</h2>
         <ul>
             {% for file in files %}
-            <li><a class="file" href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + file) }}">{{ file }}</a></li>
+            <li><a class="file" href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + file) }}" target="_blank" rel="noopener noreferrer">{{ file }}</a></li>
             {% else %}
             <li>Nenhum arquivo encontrado.</li>
             {% endfor %}
@@ -170,6 +170,11 @@ def file_explorer(subpath=''):
     else:
         directory = os.path.dirname(requested_path)
         filename = os.path.basename(requested_path)
+        image_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp']
+        if any(filename.lower().endswith(ext) for ext in image_extensions):
+            # Serve as imagens no navegador em vez de forçar o download
+            return send_from_directory(directory, filename, as_attachment=False)
+        # Para outros tipos de arquivo, mantém o comportamento de download
         return send_from_directory(directory, filename, as_attachment=True)
 
 if __name__ == "__main__":
