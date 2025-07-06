@@ -1053,59 +1053,6 @@ def send_discord_log_message(bot_account, message_content, discord_webhook_url_l
     except Exception as e:
         print(f"❌ Exceção ao enviar mensagem de log para o Discord: {str(e)}")
 
-def create_completion_file(basedir, bot_account):
-    """
-    Registra a conclusão da execução em um arquivo JSON.
-    Cada execução adiciona um novo registro ao arquivo, em vez de sobrescrevê-lo.
-    O arquivo é salvo em: basedir/colabtools_shared/sessions/bot_account.json
-    """
-    if not bot_account:
-        print("⚠️ Nome da conta do bot (BOT_ACCOUNT) não fornecido. Pulando a criação do arquivo de conclusão.")
-        return
-
-    try:
-        # Construir o caminho do diretório e do arquivo
-        sessions_dir = os.path.join(basedir, "colabtools_shared", "sessions", "_0_STATUS")
-        # Mudar a extensão para .json para refletir o formato
-        file_path = os.path.join(sessions_dir, f"{bot_account}.json")
-
-        os.makedirs(sessions_dir, exist_ok=True)
-
-        # Carregar dados existentes ou iniciar uma lista vazia
-        records = []
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    records = json.load(f)
-                # Garante que 'records' seja uma lista
-                if not isinstance(records, list):
-                    print(f"⚠️ Arquivo de conclusão '{file_path}' não contém uma lista JSON. Será sobrescrito.")
-                    records = []
-            except json.JSONDecodeError:
-                print(f"⚠️ Erro ao decodificar JSON de '{file_path}'. O arquivo será sobrescrito.")
-                records = []
-
-        # Obter a data e hora local do sistema
-        now_local = datetime.now()
-
-        # Criar o novo registro com data e hora separadas
-        new_record = {
-            "data": now_local.strftime("%d/%m/%Y"),
-            "hora": now_local.strftime("%H:%M:%S")
-        }
-
-        # Adicionar o novo registro à lista
-        records.append(new_record)
-
-        # Salvar a lista atualizada de volta no arquivo
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(records, f, indent=4, ensure_ascii=False)
-            
-        print(f"✅ Registro de conclusão adicionado com sucesso em: {file_path}")
-
-    except Exception as e:
-        print(f"❌ Erro ao criar/atualizar o arquivo de conclusão: {e}")
-
 def stop_space(HF_TOKEN, SPACE_REPO_ID):
     api = HfApi(token=HF_TOKEN)
     print(f"🛑 Desligando o Space: {SPACE_REPO_ID}")
@@ -1114,3 +1061,76 @@ def stop_space(HF_TOKEN, SPACE_REPO_ID):
         print("Space pausado com sucesso.")
     except Exception as e:
         print(f"Erro ao pausar o Space: {e}")
+
+#TODOIST FUNCTIONS
+import requests
+
+# Substitua pelo seu token pessoal da API do Todoist
+TODOIST_API_TOKEN = "ec1ac739baeee0b729cf67417cc1db59aa04acd9"
+
+HEADERS = {
+    "Authorization": f"Bearer {TODOIST_API_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+# 🔍 Verificar se uma tarefa foi concluída
+def verificar_tarefa_concluida(nome_tarefa):
+    # Busca tarefas ativas
+    response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
+    tarefas = response.json()
+
+    for tarefa in tarefas:
+        if tarefa["content"].lower() == nome_tarefa.lower():
+            print(f"[❌ A FAZER] Tarefa ainda ativa: {tarefa['content']}")
+            return False
+
+    # Se não encontrou na lista ativa, pode estar concluída
+    print(f"[✅ CONCLUÍDA OU INEXISTENTE] '{nome_tarefa}' não está entre tarefas ativas.")
+    return True
+
+# ✅ Concluir uma tarefa (por nome exato)
+def concluir_tarefa(nome_tarefa):
+    # Lista tarefas ativas
+    response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
+    tarefas = response.json()
+
+    for tarefa in tarefas:
+        if tarefa["content"].lower() == nome_tarefa.lower():
+            tarefa_id = tarefa["id"]
+            # Conclui a tarefa
+            r = requests.post(f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}/close", headers=HEADERS)
+            if r.status_code == 204:
+                print(f"[✔️ CONCLUÍDA] Tarefa '{nome_tarefa}' concluída com sucesso.")
+                return True
+            else:
+                print(f"[⚠️ ERRO] Falha ao concluir tarefa '{nome_tarefa}' - Status: {r.status_code}")
+                return False
+
+    print(f"[⚠️ NÃO ENCONTRADA] Tarefa '{nome_tarefa}' não encontrada entre ativas.")
+    return False
+
+# ➕ Criar uma nova tarefa, somente se não existir
+
+def criar_tarefa(nome_tarefa, projeto_id=None):
+    # Verifica se a tarefa já existe (ativa)
+    response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
+    tarefas = response.json()
+
+    for tarefa in tarefas:
+        if tarefa["content"].lower() == nome_tarefa.lower():
+            print(f"[⚠️ JÁ EXISTE] Tarefa '{nome_tarefa}' já existe e está ativa.")
+            return False
+
+    # Se não existe, cria a tarefa
+    url = "https://api.todoist.com/rest/v2/tasks"
+    payload = {"content": nome_tarefa}
+    if projeto_id:
+        payload["project_id"] = projeto_id
+    response = requests.post(url, headers=HEADERS, json=payload)
+    if response.status_code == 200 or response.status_code == 204:
+        print(f"[✅ CRIADA] Tarefa '{nome_tarefa}' criada com sucesso.")
+        return True
+    else:
+        print(f"[⚠️ ERRO] Falha ao criar tarefa '{nome_tarefa}' - Status: {response.status_code}")
+        print(response.text)
+        return False

@@ -63,7 +63,7 @@ def run_bots():
 
 
     rwd_functions.send_discord_log_message(BOT_ACCOUNT, "Iniciando execução...", DISCORD_WEBHOOK_URL_LOG)
-
+    rwd_functions.criar_tarefa(BOT_ACCOUNT)
     # Verifica a localização da VM se US_ONLY estiver ativado
     if US_ONLY:
         print("Verificando localização da VM...")
@@ -166,8 +166,13 @@ def run_bots():
         print("Iniciando bots...")
         rwd_functions.start_bots(DISCORD_WEBHOOK_URL_BR, DISCORD_WEBHOOK_URL_US, *selected_bots) # Saída principal ainda no console
         print("✅ Bots executados e encerrados.")
-        print("Criando arquivo de conclusão...")
-        rwd_functions.create_completion_file(BASEDIR, BOT_ACCOUNT)
+
+        if CONFIG_MODE == "GEN_COOKIE_CONFIG":
+            pass
+        else:
+            print("Concluindo tarefa...")
+            rwd_functions.concluir_tarefa(BOT_ACCOUNT)    
+
         print("Fazendo upload de sessions para o google drive...")
         rwd_functions.upload_rewards_drive()
     else:
