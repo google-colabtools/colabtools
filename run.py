@@ -63,7 +63,10 @@ def run_bots():
 
 
     rwd_functions.send_discord_log_message(BOT_ACCOUNT, "Iniciando execução...", DISCORD_WEBHOOK_URL_LOG)
-    rwd_functions.criar_tarefa(BOT_ACCOUNT)
+    if CONFIG_MODE == "GEN_COOKIE_CONFIG":
+        pass
+    else:
+        rwd_functions.criar_tarefa(BOT_ACCOUNT)
     # Verifica a localização da VM se US_ONLY estiver ativado
     if US_ONLY:
         print("Verificando localização da VM...")
