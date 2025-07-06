@@ -246,6 +246,12 @@ export class Login {
                 const screenshotPath = `./password_enter_${timestamp}.png`;
                 await page.screenshot({ path: screenshotPath });
                 await this.bot.utils.wait(3000)
+                const bodyText = await page.evaluate(() => document.body.innerText.trim());
+                if (bodyText.includes('Help us protect your account')) {
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'ERROR: "Help us protect your account" detected. Exiting.', 'error');
+                    await page.close();
+                    process.exit(1);
+                }
                 // After any login step where the button may appear, add:
                 let skipButtonFound = false;
                 for (let attempt = 1; attempt <= 3; attempt++) {
