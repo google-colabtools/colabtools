@@ -170,12 +170,20 @@ def file_explorer(subpath=''):
     else:
         directory = os.path.dirname(requested_path)
         filename = os.path.basename(requested_path)
-        image_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp']
-        if any(filename.lower().endswith(ext) for ext in image_extensions):
-            # Serve as imagens no navegador em vez de forçar o download
-            return send_from_directory(directory, filename, as_attachment=False)
-        # Para outros tipos de arquivo, mantém o comportamento de download
-        return send_from_directory(directory, filename, as_attachment=True)
+        # Lista de extensões que devem ser forçadamente baixadas (consideradas "binárias")
+        binary_extensions = [
+            '.zip', '.rar', '.7z', '.tar', '.gz',  # Arquivos compactados
+            '.exe', '.msi', '.dmg', '.deb',        # Executáveis e instaladores
+            '.bin', '.iso', '.img', '.dll', '.so', # Imagens de disco e binários
+            '.doc', '.docx', '.xls', '.xlsx',     # Documentos do Office que não são bem visualizados
+            '.ppt', '.pptx',
+            '.mp3', '.wav', '.mp4', '.avi', '.mkv' # Arquivos de mídia que são melhores para baixar
+        ]
+
+        # Força o download se a extensão estiver na lista de binários
+        force_download = any(filename.lower().endswith(ext) for ext in binary_extensions)
+
+        return send_from_directory(directory, filename, as_attachment=force_download)
 
 if __name__ == "__main__":
     app.run()
