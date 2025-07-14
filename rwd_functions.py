@@ -121,11 +121,20 @@ def update_points_by_email(email_to_update, new_points, sheet_name):
     if not service:
         return
 
+    # Garante que o valor seja numérico
+    try:
+        numeric_points = int(new_points)
+    except (ValueError, TypeError):
+        try:
+            numeric_points = float(new_points)
+        except (ValueError, TypeError):
+            numeric_points = 0  # fallback seguro
+
     row_number = find_row_by_email(service, sheet_name, email_to_update)
 
     if row_number:
         range_to_update = f'{sheet_name}!{POINTS_COLUMN}{row_number}'
-        values = [[new_points]]
+        values = [[numeric_points]]
         body = {'values': values}
         try:
             service.spreadsheets().values().update(
@@ -137,7 +146,7 @@ def update_points_by_email(email_to_update, new_points, sheet_name):
         except Exception:
             pass
     else:
-        append_email_and_points(service, sheet_name, email_to_update, new_points)
+        append_email_and_points(service, sheet_name, email_to_update, numeric_points)
 #==============================================================
 
 # Define o basedir como o diretório atual de execução
