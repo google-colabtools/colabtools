@@ -34,7 +34,7 @@ SPREADSHEET_ID_env = str(os.getenv("SPREADSHEET_ID", "")).strip()
 BOT_DIRECTORY = bot_directory_env
 # Caminho para o arquivo JSON da sua Service Account
 SERVICE_ACCOUNT_FILE = r'serviceaccount.json'
-SERVICE_ACCOUNT_URL = f'{BOT_DIRECTORY}/{SERVICE_ACCOUNT_FILE}'
+SERVICE_ACCOUNT_URL = f'{BOT_DIRECTORY}{SERVICE_ACCOUNT_FILE}'
 
 
 # O ID da sua planilha (você encontra na URL da planilha)
