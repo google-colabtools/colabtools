@@ -8,12 +8,137 @@ import shutil
 from datetime import datetime
 from huggingface_hub import HfApi
 from dotenv import load_dotenv
+#planilhas
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+#===============================================================
 
 # Carrega o arquivo .env
 load_dotenv("config.env")
 
 bot_acc_env = str(os.getenv("BOT_ACCOUNT", "")).strip()
 discord_webhook_log_env = os.getenv("DISCORD_WEBHOOK_URL_LOG", "").strip()
+
+
+# TODOIST
+todoist_api_env = str(os.getenv("TODOIST_API", "")).strip()
+TODOIST_API_TOKEN = todoist_api_env
+#==============================================================
+
+#ATUALIZAÇÃO DE PLANILHA
+bot_directory_env = str(os.getenv("BOT_DIRECTORY", "")).strip()
+SPREADSHEET_ID_env = str(os.getenv("SPREADSHEET_ID", "")).strip()
+
+
+BOT_DIRECTORY = bot_directory_env
+# Caminho para o arquivo JSON da sua Service Account
+SERVICE_ACCOUNT_FILE = r'serviceaccount.json'
+SERVICE_ACCOUNT_URL = f'{BOT_DIRECTORY}/{SERVICE_ACCOUNT_FILE}'
+
+
+# O ID da sua planilha (você encontra na URL da planilha)
+SPREADSHEET_ID = SPREADSHEET_ID_env
+
+# A coluna onde os e-mails estão (ex: 'A' para a primeira coluna)
+EMAIL_COLUMN = 'B' # <-- ATUALIZE AQUI
+
+# A coluna onde os pontos estão (ex: 'B' se os pontos estão na segunda coluna)
+POINTS_COLUMN = 'F' # <-- ATUALIZE AQUI
+
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+
+def get_sheets_service():
+    """Autentica com a Service Account e retorna o serviço da API do Google Sheets."""
+    try:
+        if os.path.exists(SERVICE_ACCOUNT_FILE):
+            creds = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=SCOPES
+            )
+        elif SERVICE_ACCOUNT_URL:
+            print("Arquivo local não encontrado. Baixando serviceaccount.json da URL...")
+            resp = requests.get(SERVICE_ACCOUNT_URL)
+            resp.raise_for_status()
+            info = resp.json()
+            creds = service_account.Credentials.from_service_account_info(
+                info, scopes=SCOPES
+            )
+        else:
+            print("Arquivo serviceaccount.json não encontrado e nenhuma URL fornecida.")
+            return None
+
+        service = build('sheets', 'v4', credentials=creds)
+        return service
+    except Exception as e:
+        print(f"Erro ao autenticar ou construir o serviço: {e}")
+        return None
+
+def find_row_by_email(service, sheet_name, target_email):
+    """
+    Encontra o número da linha de um e-mail específico na planilha.
+    Retorna o número da linha (base 1) ou None se não encontrado.
+    """
+    try:
+        range_to_read = f'{sheet_name}!{EMAIL_COLUMN}:{EMAIL_COLUMN}'
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=range_to_read
+        ).execute()
+        values = result.get('values', [])
+        if not values:
+            return None
+        for i, row in enumerate(values):
+            if row and row[0].strip().lower() == target_email.strip().lower():
+                return i + 1
+        return None
+    except Exception:
+        return None
+
+def append_email_and_points(service, sheet_name, email, points):
+    """
+    Adiciona um novo e-mail e pontos na próxima linha em branco.
+    """
+    range_to_append = f'{sheet_name}!{EMAIL_COLUMN}:{POINTS_COLUMN}'
+    values = [[email, points]]
+    body = {'values': values}
+    try:
+        service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=range_to_append,
+            valueInputOption='RAW',
+            insertDataOption='INSERT_ROWS',
+            body=body
+        ).execute()
+    except Exception:
+        pass
+
+def update_points_by_email(email_to_update, new_points, sheet_name):
+    """
+    Atualiza a coluna de pontos para um e-mail específico na planilha.
+    Se o e-mail não existir, adiciona na próxima linha em branco.
+    """
+    service = get_sheets_service()
+    if not service:
+        return
+
+    row_number = find_row_by_email(service, sheet_name, email_to_update)
+
+    if row_number:
+        range_to_update = f'{sheet_name}!{POINTS_COLUMN}{row_number}'
+        values = [[new_points]]
+        body = {'values': values}
+        try:
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=range_to_update,
+                valueInputOption='RAW',
+                body=body
+            ).execute()
+        except Exception:
+            pass
+    else:
+        append_email_and_points(service, sheet_name, email_to_update, new_points)
+#==============================================================
 
 # Define o basedir como o diretório atual de execução
 BASEDIR = os.getcwd()
@@ -80,11 +205,6 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
         except Exception as e:
             print(f"❌ Erro ao obter informações da conta: {str(e)}")
         
-        # Se doDesktopSearch for False, não envia mensagem
-        if not check_restrict:
-            print("🔕 Conta em Modo Restrição, nenhuma mensagem será enviada.")
-            return
-        
         # Extrair apenas o valor numérico dos pontos da mensagem
         points = "0"
         if "Current point count:" in message:
@@ -107,9 +227,18 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
         should_send = (is_multi_br and points_int > 6710) or (not is_multi_br and points_int >= 6500)
         if is_multi_br:
             DISCORD_WEBHOOK_URL = discord_webhook_url_br
+            SHEET_NAME = 'REWARDS-BR'
         else:
             DISCORD_WEBHOOK_URL = discord_webhook_url_us
-        
+            SHEET_NAME = 'REWARDS-US'
+
+        update_points_by_email(email, points, SHEET_NAME)
+            
+        # Se doDesktopSearch for False, não envia mensagem
+        if not check_restrict:
+            print("🔕 Conta em Modo Restrição, nenhuma mensagem será enviada.")
+            return
+
         if should_send:
             # Formatar a mensagem com o email, perfil e pontos
             current_time = time.strftime("%d/%m/%Y")
@@ -1062,75 +1191,76 @@ def stop_space(HF_TOKEN, SPACE_REPO_ID):
     except Exception as e:
         print(f"Erro ao pausar o Space: {e}")
 
+
 #TODOIST FUNCTIONS
-import requests
-
-# Substitua pelo seu token pessoal da API do Todoist
-TODOIST_API_TOKEN = "ec1ac739baeee0b729cf67417cc1db59aa04acd9"
-
 HEADERS = {
     "Authorization": f"Bearer {TODOIST_API_TOKEN}",
     "Content-Type": "application/json"
 }
 
-# 🔍 Verificar se uma tarefa foi concluída
 def verificar_tarefa_concluida(nome_tarefa):
-    # Busca tarefas ativas
-    response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
-    tarefas = response.json()
-
-    for tarefa in tarefas:
-        if tarefa["content"].lower() == nome_tarefa.lower():
-            print(f"[❌ A FAZER] Tarefa ainda ativa: {tarefa['content']}")
-            return False
-
-    # Se não encontrou na lista ativa, pode estar concluída
-    print(f"[✅ CONCLUÍDA OU INEXISTENTE] '{nome_tarefa}' não está entre tarefas ativas.")
-    return True
-
-# ✅ Concluir uma tarefa (por nome exato)
-def concluir_tarefa(nome_tarefa):
-    # Lista tarefas ativas
-    response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
-    tarefas = response.json()
-
-    for tarefa in tarefas:
-        if tarefa["content"].lower() == nome_tarefa.lower():
-            tarefa_id = tarefa["id"]
-            # Conclui a tarefa
-            r = requests.post(f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}/close", headers=HEADERS)
-            if r.status_code == 204:
-                print(f"[✔️ CONCLUÍDA] Tarefa '{nome_tarefa}' concluída com sucesso.")
-                return True
-            else:
-                print(f"[⚠️ ERRO] Falha ao concluir tarefa '{nome_tarefa}' - Status: {r.status_code}")
+    if not TODOIST_API_TOKEN:
+        # Token não definido, apenas retorna como se não tivesse tarefa
+        return False
+    try:
+        response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
+        tarefas = response.json()
+        for tarefa in tarefas:
+            if tarefa["content"].lower() == nome_tarefa.lower():
+                print(f"[❌ A FAZER] Tarefa ainda ativa: {tarefa['content']}")
                 return False
+        print(f"[✅ CONCLUÍDA OU INEXISTENTE] '{nome_tarefa}' não está entre tarefas ativas.")
+        return True
+    except Exception:
+        # Falha silenciosa se não conseguir acessar a API
+        return False
 
-    print(f"[⚠️ NÃO ENCONTRADA] Tarefa '{nome_tarefa}' não encontrada entre ativas.")
-    return False
-
-# ➕ Criar uma nova tarefa, somente se não existir
+def concluir_tarefa(nome_tarefa):
+    if not TODOIST_API_TOKEN:
+        # Token não definido, retorna silenciosamente
+        return False
+    try:
+        response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
+        tarefas = response.json()
+        for tarefa in tarefas:
+            if tarefa["content"].lower() == nome_tarefa.lower():
+                tarefa_id = tarefa["id"]
+                r = requests.post(f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}/close", headers=HEADERS)
+                if r.status_code == 204:
+                    print(f"[✔️ CONCLUÍDA] Tarefa '{nome_tarefa}' concluída com sucesso.")
+                    return True
+                else:
+                    print(f"[⚠️ ERRO] Falha ao concluir tarefa '{nome_tarefa}' - Status: {r.status_code}")
+                    return False
+        print(f"[⚠️ NÃO ENCONTRADA] Tarefa '{nome_tarefa}' não encontrada entre ativas.")
+        return False
+    except Exception:
+        # Falha silenciosa se não conseguir acessar a API
+        return False
 
 def criar_tarefa(nome_tarefa, projeto_id=None):
-    # Verifica se a tarefa já existe (ativa)
-    response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
-    tarefas = response.json()
-
-    for tarefa in tarefas:
-        if tarefa["content"].lower() == nome_tarefa.lower():
-            print(f"[⚠️ JÁ EXISTE] Tarefa '{nome_tarefa}' já existe e está ativa.")
+    if not TODOIST_API_TOKEN:
+        # Token não definido, retorna silenciosamente
+        return False
+    try:
+        response = requests.get("https://api.todoist.com/rest/v2/tasks", headers=HEADERS)
+        tarefas = response.json()
+        for tarefa in tarefas:
+            if tarefa["content"].lower() == nome_tarefa.lower():
+                print(f"[⚠️ JÁ EXISTE] Tarefa '{nome_tarefa}' já existe e está ativa.")
+                return False
+        url = "https://api.todoist.com/rest/v2/tasks"
+        payload = {"content": nome_tarefa}
+        if projeto_id:
+            payload["project_id"] = projeto_id
+        response = requests.post(url, headers=HEADERS, json=payload)
+        if response.status_code in (200, 204):
+            print(f"[✅ CRIADA] Tarefa '{nome_tarefa}' criada com sucesso.")
+            return True
+        else:
+            print(f"[⚠️ ERRO] Falha ao criar tarefa '{nome_tarefa}' - Status: {response.status_code}")
+            print(response.text)
             return False
-
-    # Se não existe, cria a tarefa
-    url = "https://api.todoist.com/rest/v2/tasks"
-    payload = {"content": nome_tarefa}
-    if projeto_id:
-        payload["project_id"] = projeto_id
-    response = requests.post(url, headers=HEADERS, json=payload)
-    if response.status_code == 200 or response.status_code == 204:
-        print(f"[✅ CRIADA] Tarefa '{nome_tarefa}' criada com sucesso.")
-        return True
-    else:
-        print(f"[⚠️ ERRO] Falha ao criar tarefa '{nome_tarefa}' - Status: {response.status_code}")
-        print(response.text)
+    except Exception:
+        # Falha silenciosa se não conseguir acessar a API
         return False
