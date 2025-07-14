@@ -946,7 +946,7 @@ def start_bots(discord_webhook_url_br, discord_webhook_url_us, *bots_to_run):
                                     total_text = line.split("Current total:")[1].strip()
                                     total_points = int(''.join(filter(str.isdigit, total_text)))
 
-                                    if total_points > 3350:
+                                    if total_points > 0:
                                         original_line = line.strip()
                                         line = f"🚨🚨🚨 {original_line} 🚨🚨🚨"
                                         threading.Thread(target=send_discord_redeem_alert, args=(bot_letter, original_line, discord_webhook_url_br, discord_webhook_url_us)).start()
