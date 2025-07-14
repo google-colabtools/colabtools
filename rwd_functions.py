@@ -214,26 +214,8 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
         except Exception as e:
             print(f"❌ Erro ao obter informações da conta: {str(e)}")
         
-        # Extrair apenas o valor numérico dos pontos da mensagem
-        points = "0"
-        if "Current point count:" in message:
-            # Remover espaços extras e extrair apenas os números
-            message = message.strip()
-            points_text = message.split("Current point count:")[1].strip()
-            points = ''.join(filter(str.isdigit, points_text))
-
-        if "Current total:" in message:
-            # Remover espaços extras e extrair apenas os números
-            message = message.strip()
-            total_text = message.split("Current total:")[1].strip()
-            points = ''.join(filter(str.isdigit, total_text))
-
-        # Converter pontos para inteiro para comparação
-        points_int = int(points)
-        
-        # Verificar condições para envio da mensagem
         is_multi_br = session_profile.startswith('multi-BR')
-        should_send = (is_multi_br and points_int > 6710) or (not is_multi_br and points_int >= 6500)
+        
         if is_multi_br:
             DISCORD_WEBHOOK_URL = discord_webhook_url_br
             SHEET_NAME = 'REWARDS-BR'
@@ -241,7 +223,30 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
             DISCORD_WEBHOOK_URL = discord_webhook_url_us
             SHEET_NAME = 'REWARDS-US'
 
-        update_points_by_email(email, points, SHEET_NAME)
+        # Extrair apenas o valor numérico dos pontos da mensagem
+        points = "0"
+        
+        if "Current point count:" in message:
+            # Remover espaços extras e extrair apenas os números
+            message = message.strip()
+            points_text = message.split("Current point count:")[1].strip()
+            points = ''.join(filter(str.isdigit, points_text))
+            points_int = int(points) # Converter pontos para inteiro para comparação
+            update_points_by_email(email, points, SHEET_NAME)
+            return
+
+        if "Current total:" in message:
+            # Remover espaços extras e extrair apenas os números
+            message = message.strip()
+            total_text = message.split("Current total:")[1].strip()
+            points = ''.join(filter(str.isdigit, total_text))
+            points_int = int(points) # Converter pontos para inteiro para comparação
+            update_points_by_email(email, points, SHEET_NAME)
+
+
+        # Verificar condições para envio da mensagem        
+        should_send = (is_multi_br and points_int > 6710) or (not is_multi_br and points_int >= 6500)
+
             
         # Se doDesktopSearch for False, não envia mensagem
         if not check_restrict:
@@ -950,9 +955,12 @@ def start_bots(discord_webhook_url_br, discord_webhook_url_us, *bots_to_run):
                             
                             # Na função monitor_output, dentro do loop que processa a saída do bot:
                             # Verificar se a linha contém informações sobre pontos e adicionar emotes se necessário
-                            if "Current total:" in line:
+                            if "Current total:" in line or "Current point:" in line:
                                 try:
-                                    total_text = line.split("Current total:")[1].strip()
+                                    if "Current total:" in line:
+                                        total_text = line.split("Current total:")[1].strip()
+                                    else:
+                                        total_text = line.split("Current point:")[1].strip()
                                     total_points = int(''.join(filter(str.isdigit, total_text)))
 
                                     if total_points > 0:
