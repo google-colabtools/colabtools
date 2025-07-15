@@ -1,20 +1,30 @@
 from flask import Flask, render_template_string, send_from_directory, abort, url_for, request, redirect
 import os
 from werkzeug.utils import secure_filename
+import time
 
 app = Flask(__name__)
+
+# Adicione isso no início do seu arquivo, após criar o app Flask
+@app.after_request
+def allow_iframe(response):
+    response.headers.pop('X-Frame-Options', None)
+    return response
 
 # Define o diretório base para o explorador de arquivos
 BASE_DIR = os.getcwd()
 
+START_TIME = time.time()
+
 @app.route('/')
 def home():
-    return '''
+    uptime_seconds = int(time.time() - START_TIME)
+    return f'''
     <html>
         <head>
             <title>App is Running</title>
             <style>
-                body {
+                body {{
                     background: #23272e;
                     color: #c7d0dc;
                     font-family: 'Segoe UI', 'Arial', sans-serif;
@@ -24,23 +34,23 @@ def home():
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                }
-                .container {
+                }}
+                .container {{
                     background: #2c313c;
                     padding: 40px 60px;
                     border-radius: 12px;
                     box-shadow: 0 4px 24px rgba(0,0,0,0.4);
                     text-align: center;
-                }
-                h1 {
+                }}
+                h1 {{
                     color: #7ecfff;
                     margin-bottom: 12px;
-                }
-                p {
+                }}
+                p {{
                     color: #c7d0dc;
                     font-size: 1.2em;
-                }
-                .button {
+                }}
+                .button {{
                     display: inline-block;
                     margin-top: 25px;
                     padding: 12px 24px;
@@ -50,18 +60,36 @@ def home():
                     font-weight: 600;
                     border-radius: 8px;
                     transition: background-color 0.3s, transform 0.2s;
-                }
-                .button:hover {
+                }}
+                .button:hover {{
                     background-color: #a2e0ff;
                     transform: translateY(-2px);
-                }
+                }}
             </style>
+            <script>
+                let uptime = {uptime_seconds};
+                function formatUptime(s) {{
+                    let h = Math.floor(s/3600);
+                    let m = Math.floor((s%3600)/60);
+                    let sec = s%60;
+                    return h.toString().padStart(2,'0')+':'+m.toString().padStart(2,'0')+':'+sec.toString().padStart(2,'0');
+                }}
+                function updateUptime() {{
+                    uptime += 1;
+                    document.getElementById('uptime').innerText = formatUptime(uptime);
+                }}
+                setInterval(updateUptime, 1000);
+                window.onload = function() {{
+                    document.getElementById('uptime').innerText = formatUptime(uptime);
+                }};
+            </script>
         </head>
         <body>
             <div class="container">
                 <h1>App is Running...</h1>
                 <p>Seu serviço Flask está ativo e pronto!</p>
-                <a href="/files" class="button">Explorar Arquivos</a>
+                <p><b>Uptime:</b> <span id="uptime"></span></p>
+                <a href="/files" class="button" target="_blank" rel="noopener noreferrer">Explorar Arquivos</a>
             </div>
         </body>
     </html>
