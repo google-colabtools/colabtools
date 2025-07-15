@@ -185,7 +185,8 @@ def run_bots():
     time.sleep(5)
     rwd_functions.stop_space(HF_TOKEN, SPACE_REPO_ID)
     print("🏁 Processo concluído.")
-    time.sleep(60)
+    input(" ")
 
 if __name__ == '__main__':
     run_bots()
+
