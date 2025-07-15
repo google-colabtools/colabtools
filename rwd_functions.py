@@ -29,6 +29,8 @@ TODOIST_API_TOKEN = todoist_api_env
 #ATUALIZAÇÃO DE PLANILHA
 bot_directory_env = str(os.getenv("BOT_DIRECTORY", "")).strip()
 SPREADSHEET_ID_env = str(os.getenv("SPREADSHEET_ID", "")).strip()
+EMAIL_COLUMN_env = str(os.getenv("EMAIL_COLUMN", "")).strip()
+POINTS_COLUMN_env = str(os.getenv("POINTS_COLUMN", "")).strip()
 
 
 BOT_DIRECTORY = bot_directory_env
@@ -39,12 +41,9 @@ SERVICE_ACCOUNT_URL = f'{BOT_DIRECTORY}{SERVICE_ACCOUNT_FILE}'
 
 # O ID da sua planilha (você encontra na URL da planilha)
 SPREADSHEET_ID = SPREADSHEET_ID_env
+EMAIL_COLUMN = EMAIL_COLUMN_env
+POINTS_COLUMN = POINTS_COLUMN_env
 
-# A coluna onde os e-mails estão (ex: 'A' para a primeira coluna)
-EMAIL_COLUMN = 'B' # <-- ATUALIZE AQUI
-
-# A coluna onde os pontos estão (ex: 'B' se os pontos estão na segunda coluna)
-POINTS_COLUMN = 'F' # <-- ATUALIZE AQUI
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
