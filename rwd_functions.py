@@ -225,13 +225,14 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
 
         # Extrair apenas o valor numérico dos pontos da mensagem
         points = "0"
-        
+
         if "Current point count:" in message:
             # Remover espaços extras e extrair apenas os números
             message = message.strip()
             points_text = message.split("Current point count:")[1].strip()
             points = ''.join(filter(str.isdigit, points_text))
             points_int = int(points) # Converter pontos para inteiro para comparação
+            print(f"📊 Atualizando Planilha: {points_int} para o email: {email}")
             update_points_by_email(email, points, SHEET_NAME)
             return
 
@@ -955,15 +956,23 @@ def start_bots(discord_webhook_url_br, discord_webhook_url_us, *bots_to_run):
                             
                             # Na função monitor_output, dentro do loop que processa a saída do bot:
                             # Verificar se a linha contém informações sobre pontos e adicionar emotes se necessário
-                            if "Current total:" in line or "Current point:" in line:
+                            if "Current total:" in line:
                                 try:
-                                    if "Current total:" in line:
-                                        total_text = line.split("Current total:")[1].strip()
-                                    else:
-                                        total_text = line.split("Current point:")[1].strip()
+                                    total_text = line.split("Current total:")[1].strip()
                                     total_points = int(''.join(filter(str.isdigit, total_text)))
 
-                                    if total_points > 0:
+                                    if total_points > 1:
+                                        original_line = line.strip()
+                                        line = f"🚨🚨🚨 {original_line} 🚨🚨🚨"
+                                        threading.Thread(target=send_discord_redeem_alert, args=(bot_letter, original_line, discord_webhook_url_br, discord_webhook_url_us)).start()
+                                except (ValueError, IndexError):
+                                    pass
+                            if "Current point count:" in line:
+                                try:
+                                    total_text = line.split("Current point count:")[1].strip()
+                                    total_points = int(''.join(filter(str.isdigit, total_text)))
+
+                                    if total_points > 1:
                                         original_line = line.strip()
                                         line = f"🚨🚨🚨 {original_line} 🚨🚨🚨"
                                         threading.Thread(target=send_discord_redeem_alert, args=(bot_letter, original_line, discord_webhook_url_br, discord_webhook_url_us)).start()
