@@ -186,4 +186,4 @@ def file_explorer(subpath=''):
         return send_from_directory(directory, filename, as_attachment=force_download)
 
 if __name__ == "__main__":
-    app.run()
+    app.run(ssl_context='adhoc')
