@@ -161,6 +161,8 @@ bot_pids = {
 }
 is_shutdown_requested = False  # Nova variável global para controlar o estado de desligamento
 
+last_alerts = {}
+
 def clean_account_proxys(account_file):
     try:
         # Abre o arquivo e carrega o conteúdo JSON
@@ -231,7 +233,7 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
             points_text = message.split("Current point count:")[1].strip()
             points = ''.join(filter(str.isdigit, points_text))
             points_int = int(points) # Converter pontos para inteiro para comparação
-            print(f"📊 Atualizando Planilha: {points_int} para o email: {email}")
+            print(f"📊 CPC Atualizando Planilha: {points_int} para o email: {email}")
             update_points_by_email(email, points, SHEET_NAME)
             return
 
@@ -241,7 +243,7 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
             total_text = message.split("Current total:")[1].strip()
             points = ''.join(filter(str.isdigit, total_text))
             points_int = int(points) # Converter pontos para inteiro para comparação
-            print(f"📊 Atualizando Planilha: {points_int} para o email: {email}")
+            print(f"📊 CT: Atualizando Planilha: {points_int} para o email: {email}")
             update_points_by_email(email, points, SHEET_NAME)
 
 
@@ -253,6 +255,12 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
         if not check_restrict:
             print("🔕 Conta em Modo Restrição, nenhuma mensagem será enviada.")
             return
+
+        alert_key = f"{session_profile}-{email}"
+        if last_alerts.get(alert_key) == points:
+            print(f"🔁 Alerta duplicado ignorado para {alert_key} ({points} pontos)")
+            return
+        last_alerts[alert_key] = points
 
         if should_send:
             # Formatar a mensagem com o email, perfil e pontos
