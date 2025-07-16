@@ -153,7 +153,7 @@ FILE_EXPLORER_TEMPLATE = """
         <h2>Arquivos</h2>
         <ul>
             {% for file in files %}
-            <li><a class="file" href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + file) }}" target="_blank" rel="noopener noreferrer">{{ file }}</a></li>
+            <li><a class="file" href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + file) }}">{{ file }}</a></li>
             {% else %}
             <li>Nenhum arquivo encontrado.</li>
             {% endfor %}
