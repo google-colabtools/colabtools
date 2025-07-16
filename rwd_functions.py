@@ -226,23 +226,24 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
 
         # Extrair apenas o valor numérico dos pontos da mensagem
         points = "0"
+        points_int = 0
 
-        if "Current point count:" in message:
-            # Remover espaços extras e extrair apenas os números
+        if "Current point count:" in message and "Current total:" not in message:
+            # Extrai pontos do "Current point count:"
             message = message.strip()
             points_text = message.split("Current point count:")[1].strip()
             points = ''.join(filter(str.isdigit, points_text))
-            points_int = int(points) # Converter pontos para inteiro para comparação
+            points_int = int(points) if points else 0
             print(f"📊 CPC Atualizando Planilha: {points_int} para o email: {email}")
             update_points_by_email(email, points, SHEET_NAME)
             return
 
-        if "Current total:" in message:
-            # Remover espaços extras e extrair apenas os números
+        elif "Current total:" in message and "Current point count:" not in message:
+            # Extrai pontos do "Current total:"
             message = message.strip()
             total_text = message.split("Current total:")[1].strip()
             points = ''.join(filter(str.isdigit, total_text))
-            points_int = int(points) # Converter pontos para inteiro para comparação
+            points_int = int(points) if points else 0
             print(f"📊 CT: Atualizando Planilha: {points_int} para o email: {email}")
             update_points_by_email(email, points, SHEET_NAME)
 
