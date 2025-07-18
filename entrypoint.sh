@@ -8,6 +8,17 @@ cleanup() {
 
 trap cleanup EXIT
 
+# Log message to indicate the script is running
+echo "Starting entrypoint script: Configuring DNS for this run..."
+
+# Command to overwrite resolv.conf with the desired DNS servers
+# This command will be executed every time the container starts
+tee /etc/resolv.conf <<'EOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+EOF
+
+echo "DNS configured successfully."
 
 # Setup runtime directory
 mkdir -p "${XDG_RUNTIME_DIR}"
