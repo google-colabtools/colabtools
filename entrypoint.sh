@@ -11,16 +11,6 @@ trap cleanup EXIT
 # Log message to indicate the script is running
 echo "Starting entrypoint script: Configuring DNS for this run..."
 
-# Workaround: loop para sobrescrever o resolv.conf em background
-(
-  while true; do
-    echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
-    sleep 1
-  done
-) &
-
-echo "DNS workaround loop iniciado."
-
 # Setup runtime directory
 mkdir -p "${XDG_RUNTIME_DIR}"
 chmod 0700 "${XDG_RUNTIME_DIR}"

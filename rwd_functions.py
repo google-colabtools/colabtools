@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import dns.resolver
+from urllib.parse import urlparse
 #===============================================================
 
 # Carrega o arquivo .env
@@ -186,6 +188,19 @@ def clean_account_proxys(account_file):
     except Exception as e:
         print(f"Ocorreu um erro: {e}")
 
+def resolve_domain(domain, dns_server="8.8.8.8"):
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = [dns_server]
+    answer = resolver.resolve(domain, 'A')
+    return answer[0].to_text()
+
+def post_discord_with_custom_dns(webhook_url, data, dns_server="8.8.8.8"):
+    parsed = urlparse(webhook_url)
+    ip = resolve_domain(parsed.hostname, dns_server)
+    url_with_ip = webhook_url.replace(parsed.hostname, ip)
+    headers = {"Host": parsed.hostname, "Content-Type": "application/json"}
+    return requests.post(url_with_ip, headers=headers, json=data)
+
 def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, discord_webhook_url_us):
     """Envia uma mensagem para o webhook do Discord"""
     try:
@@ -266,23 +281,18 @@ def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, disco
         if should_send:
             # Formatar a mensagem com o email, perfil e pontos
             current_time = time.strftime("%d/%m/%Y")
-            # Adicionar emoji de bandeira apropriado
             flag_emoji = ":flag_br:" if is_multi_br else ":flag_us:"
-            
-
             discord_message = f"{flag_emoji} {current_time}: [{session_profile}-{bot_letter}] - {email} - {points} pontos."
-            
             data = {
                 "content": discord_message
             }
-            response = requests.post(DISCORD_WEBHOOK_URL, json=data)
+            response = post_discord_with_custom_dns(DISCORD_WEBHOOK_URL, data)
             if response.status_code == 204:
                 print(f"✅ Alerta enviado para o Discord: {email} [{session_profile}-{bot_letter}] - {points} pontos")
             else:
                 print(f"❌ Erro ao enviar alerta para o Discord: {response.status_code}")
         else:
             print(f"ℹ️ Pontuação atual ({points}) não atingiu o limite para envio de alerta ({6710 if is_multi_br else 6500} pontos)")
-            
     except Exception as e:
         print(f"❌ Erro ao enviar alerta para o Discord: {str(e)}")
 
@@ -327,12 +337,11 @@ def send_discord_suspension_alert(bot_letter, discord_webhook_url_br, discord_we
         data = {
             "content": discord_message
         }
-        response = requests.post(DISCORD_WEBHOOK_URL, json=data)
+        response = post_discord_with_custom_dns(DISCORD_WEBHOOK_URL, data)
         if response.status_code == 204:
             print(f"✅ Alerta de suspensão enviado para o Discord: {email} [{session_profile}-{bot_letter}]")
         else:
             print(f"❌ Erro ao enviar alerta de suspensão para o Discord: {response.status_code}")
-            
     except Exception as e:
         print(f"❌ Erro ao enviar alerta de suspensão para o Discord: {str(e)}")
 
@@ -1188,22 +1197,18 @@ def send_discord_log_message(bot_account, message_content, discord_webhook_url_l
     if not discord_webhook_url_log:
         print("⚠️ URL do webhook de log do Discord não configurada. Mensagem não enviada.")
         return
-    
+
     try:
         current_time = time.strftime("%d/%m/%Y %H:%M:%S")
         log_message = f"📝 {bot_account} [{current_time}]: {message_content}"
-        
         data = {
             "content": log_message
         }
-        
-        response = requests.post(discord_webhook_url_log, json=data)
-        
+        response = post_discord_with_custom_dns(discord_webhook_url_log, data)
         if response.status_code == 204:
             print(f"✅ Mensagem de log enviada para o Discord: {message_content}")
         else:
             print(f"❌ Erro ao enviar mensagem de log para o Discord: {response.status_code} - {response.text}")
-            
     except Exception as e:
         print(f"❌ Exceção ao enviar mensagem de log para o Discord: {str(e)}")
 
