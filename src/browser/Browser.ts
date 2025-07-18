@@ -1,4 +1,3 @@
-
 // External
 import playwright, { BrowserContext } from 'rebrowser-playwright'
 import { newInjectedContext } from 'fingerprint-injector'
@@ -68,7 +67,7 @@ class Browser {
                 '--ignore-ssl-errors', // 忽略 SSL 错误
                 '--enable-features=DnsOverHttps', //启用 DNS over HTTPS
                 '--dns-over-https-mode=secure', // 设置 DNS over HTTPS 模式为安全
-                '--dns-over-https-servers=https://dns.google/dns-query' // 使用 Google 的 DNS over HTTPS 服务器
+                '--dns-over-https-servers=https://dns.google/dns-query,https://cloudflare-dns.com/dns-query,https://dns.quad9.net/dns-query,https://dns.adguard.com/dns-query' // 使用 Google 的 DNS over HTTPS 服务器
             ]
         })
 
