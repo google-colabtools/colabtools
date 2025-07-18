@@ -199,7 +199,8 @@ def post_discord_with_custom_dns(webhook_url, data, dns_server="8.8.8.8"):
     ip = resolve_domain(parsed.hostname, dns_server)
     url_with_ip = webhook_url.replace(parsed.hostname, ip)
     headers = {"Host": parsed.hostname, "Content-Type": "application/json"}
-    return requests.post(url_with_ip, headers=headers, json=data)
+    # Desabilita a verificação SSL (workaround)
+    return requests.post(url_with_ip, headers=headers, json=data, verify=False)
 
 def send_discord_redeem_alert(bot_letter, message, discord_webhook_url_br, discord_webhook_url_us):
     """Envia uma mensagem para o webhook do Discord"""
