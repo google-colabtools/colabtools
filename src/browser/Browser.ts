@@ -65,7 +65,8 @@ class Browser {
                 '--disable-setuid-sandbox', // 禁用 setuid 沙盒
                 '--ignore-certificate-errors', // 忽略所有证书错误
                 '--ignore-certificate-errors-spki-list', // 忽略指定 SPKI 列表的证书错误
-                '--ignore-ssl-errors' // 忽略 SSL 错误
+                '--ignore-ssl-errors', // 忽略 SSL 错误
+                '--dns-server=8.8.8.8' // Use Google's public DNS server
             ]
         })
 
