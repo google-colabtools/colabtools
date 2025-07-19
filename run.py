@@ -69,8 +69,8 @@ def run_bots():
         rwd_functions.criar_tarefa(BOT_ACCOUNT)
     # Verifica a localização da VM se US_ONLY estiver ativado
     if US_ONLY:
-        print("Verificando localização da VM...")
-        try:
+        print("MODO EUA ATIVADO...")
+        '''try:
             rwd_functions.check_location()
             print("✅ Verificação de localização concluída. VM está nos EUA.")
             rwd_functions.send_discord_log_message(BOT_ACCOUNT, "Verificação de localização: VM está nos EUA.", DISCORD_WEBHOOK_URL_LOG)
@@ -89,7 +89,7 @@ def run_bots():
             if SPACE_REPO_ID and HF_TOKEN and HF_TOKEN != "hf_":
                 rwd_functions.send_discord_log_message(BOT_ACCOUNT, "Tentando desligar o Space devido a erro na verificação de localização...", DISCORD_WEBHOOK_URL_LOG)
                 rwd_functions.stop_space(HF_TOKEN, SPACE_REPO_ID)
-            return # Interrompe a execução de run_bots
+            return # Interrompe a execução de run_bots'''
 
     folder_path = os.path.join(BASEDIR, "colabtools_A")
     bot_selections = {
