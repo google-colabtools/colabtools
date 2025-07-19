@@ -176,29 +176,43 @@ def clean_account_proxys(account_file):
         # Modifica o campo 'proxy' para cada item na lista
         for item in dados:
             if 'proxy' in item:
-                item['proxy']['url'] = ""
-                item['proxy']['port'] = 0
+                item['proxy']['url'] = "127.0.0.1"
+                item['proxy']['port'] = 3128
                 item['proxy']['username'] = ""
                 item['proxy']['password'] = ""
         
         # Salva o arquivo de volta com as alterações
         with open(account_file, 'w', encoding='utf-8') as f:
             json.dump(dados, f, indent=4)
-        
-        print(f"Arquivo '{account_file}' modificado com sucesso.")
+
+        print(f"['{account_file}'] Proxy local definido com sucesso.")
 
     except Exception as e:
         print(f"Ocorreu um erro: {e}")
 
-def resolve_domain(domain, dns_server="8.8.8.8"):
-    resolver = dns.resolver.Resolver()
-    resolver.nameservers = [dns_server]
-    answer = resolver.resolve(domain, 'A')
-    return answer[0].to_text()
+# Variável global para DNS customizado, fallback para 8.8.8.8 e 1.1.1.1
+CUSTOM_DNS_SERVERS = [
+    os.getenv("CUSTOM_DNS_SERVER_PRIMARY", "8.8.8.8"),
+    os.getenv("CUSTOM_DNS_SERVER_SECONDARY", "1.1.1.1")
+]
 
-def post_discord_with_custom_dns(webhook_url, data, dns_server="8.8.8.8"):
+def resolve_domain(domain, dns_servers=None):
+    resolver = dns.resolver.Resolver()
+    servers = dns_servers or CUSTOM_DNS_SERVERS
+    last_exception = None
+    for dns_server in servers:
+        try:
+            resolver.nameservers = [dns_server]
+            answer = resolver.resolve(domain, 'A')
+            return answer[0].to_text()
+        except Exception as e:
+            last_exception = e
+            continue
+    raise last_exception or Exception("DNS resolution failed")
+
+def post_discord_with_custom_dns(webhook_url, data, dns_servers=None):
     parsed = urlparse(webhook_url)
-    ip = resolve_domain(parsed.hostname, dns_server)
+    ip = resolve_domain(parsed.hostname, dns_servers or CUSTOM_DNS_SERVERS)
     url_with_ip = webhook_url.replace(parsed.hostname, ip)
     headers = {"Host": parsed.hostname, "Content-Type": "application/json"}
     # Desabilita a verificação SSL (workaround)
@@ -403,7 +417,11 @@ def download_and_extract_bot_A(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         subprocess.run(f"rm -f {zip_file_name}", shell=True, check=True) # Adicionado -f para forçar
 
         if CONFIG_MODE == "GEN_COOKIE_CONFIG":
-            print("Limpando proxies do arquivo accounts.json...")
+            print("Aplicando proxy local para geração de cookies...")
+            clean_account_proxys("src/accounts.json")
+        
+        if CONFIG_MODE == "DEFAULT_CONFIG_US":
+            print("Aplicando proxy local para configuração padrão dos EUA...")
             clean_account_proxys("src/accounts.json")
 
         if CONFIG_MODE != "ZIP":
@@ -457,7 +475,11 @@ def download_and_extract_bot_B(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         subprocess.run(f"rm -f {zip_file_name}", shell=True, check=True)
 
         if CONFIG_MODE == "GEN_COOKIE_CONFIG":
-            print("Limpando proxies do arquivo accounts.json...")
+            print("Aplicando proxy local para geração de cookies...")
+            clean_account_proxys("src/accounts.json")
+        
+        if CONFIG_MODE == "DEFAULT_CONFIG_US":
+            print("Aplicando proxy local para configuração padrão dos EUA...")
             clean_account_proxys("src/accounts.json")
 
         if CONFIG_MODE != "ZIP":
@@ -511,7 +533,11 @@ def download_and_extract_bot_C(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         subprocess.run(f"rm -f {zip_file_name}", shell=True, check=True)
 
         if CONFIG_MODE == "GEN_COOKIE_CONFIG":
-            print("Limpando proxies do arquivo accounts.json...")
+            print("Aplicando proxy local para geração de cookies...")
+            clean_account_proxys("src/accounts.json")
+        
+        if CONFIG_MODE == "DEFAULT_CONFIG_US":
+            print("Aplicando proxy local para configuração padrão dos EUA...")
             clean_account_proxys("src/accounts.json")
 
         if CONFIG_MODE != "ZIP":
@@ -565,7 +591,11 @@ def download_and_extract_bot_D(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         subprocess.run(f"rm -f {zip_file_name}", shell=True, check=True)
 
         if CONFIG_MODE == "GEN_COOKIE_CONFIG":
-            print("Limpando proxies do arquivo accounts.json...")
+            print("Aplicando proxy local para geração de cookies...")
+            clean_account_proxys("src/accounts.json")
+        
+        if CONFIG_MODE == "DEFAULT_CONFIG_US":
+            print("Aplicando proxy local para configuração padrão dos EUA...")
             clean_account_proxys("src/accounts.json")
 
         if CONFIG_MODE != "ZIP":
@@ -619,7 +649,11 @@ def download_and_extract_bot_E(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         subprocess.run(f"rm -f {zip_file_name}", shell=True, check=True)
 
         if CONFIG_MODE == "GEN_COOKIE_CONFIG":
-            print("Limpando proxies do arquivo accounts.json...")
+            print("Aplicando proxy local para geração de cookies...")
+            clean_account_proxys("src/accounts.json")
+        
+        if CONFIG_MODE == "DEFAULT_CONFIG_US":
+            print("Aplicando proxy local para configuração padrão dos EUA...")
             clean_account_proxys("src/accounts.json")
 
         if CONFIG_MODE != "ZIP":
