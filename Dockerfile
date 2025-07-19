@@ -103,15 +103,6 @@ RUN apk add --no-cache \
     linux-headers \
     dos2unix
 
-
-# Baixar o .deb do Thorium
-RUN wget -O /tmp/thorium.deb https://github.com/Alex313031/thorium/releases/download/M130.0.6723.174/thorium-browser_130.0.6723.174_AVX2.deb
-
-# Instalar com dpkg
-RUN dpkg -i /tmp/thorium.deb || true \
-    && apt -f install -y || true \
-    && rm -f /tmp/thorium.deb
-
 # Download and extract project files using REPO_URL environment variable
 RUN mkdir -p $HOME/app/colabtools && cd $HOME/app/colabtools && \
 	wget https://github.com/google-colabtools/colabtools/archive/main.zip -O repo.zip \
@@ -135,6 +126,17 @@ RUN echo "⚙️ Instalando ricronus em \$HOME/.local/bin..." && \
     $HOME/.local/bin/ricronus --help >/dev/null 2>&1 && \
     echo "👍 ricronus está funcionando." || \
     (echo "❌ Falha ao baixar ou executar ricronus." && exit 1)
+
+# Instala Thorium Browser AVX2
+RUN mkdir -p /root/.config/thorium/Crash\ Reports/pending/ && \
+    wget -O /tmp/thorium-avx2.zip "https://github.com/Alex313031/thorium/releases/download/M130.0.6723.174/thorium-browser_130.0.6723.174_AVX2.zip" && \
+    unzip /tmp/thorium-avx2.zip -d $HOME/.local/bin/thorium-browser && \
+    chmod +x $HOME/.local/bin/thorium-browser/thorium && \
+    ln -sf $HOME/.local/bin/thorium-browser/thorium /usr/bin/thorium-browser && \
+    rm /tmp/thorium-avx2.zip
+
+# Teste se o Thorium está instalado corretamente
+RUN thorium-browser --version || echo "Thorium não instalado corretamente"
 
 # Latest releases available at https://github.com/aptible/supercronic/releases
 ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.33/supercronic-linux-amd64 \

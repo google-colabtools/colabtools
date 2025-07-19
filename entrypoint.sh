@@ -8,9 +8,6 @@ cleanup() {
 
 trap cleanup EXIT
 
-# Log message to indicate the script is running
-echo "Starting entrypoint script: Configuring DNS for this run..."
-
 # Setup runtime directory
 mkdir -p "${XDG_RUNTIME_DIR}"
 chmod 0700 "${XDG_RUNTIME_DIR}"

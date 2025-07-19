@@ -14,6 +14,8 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import dns.resolver
 from urllib.parse import urlparse
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 #===============================================================
 
 # Carrega o arquivo .env
