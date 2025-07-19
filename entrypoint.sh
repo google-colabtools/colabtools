@@ -28,6 +28,9 @@ EOF
 # Start Weston with headless backend and specific resolution
 nohup /usr/bin/weston --backend=headless-backend.so --width=1920 --height=1080 &
 
+# Inicie o proxy.py em background (DNS 8.8.8.8 para todo tráfego HTTP)
+nohup python3 -m proxy --hostname 127.0.0.1 --port 8899 --plugins proxy_dns.CustomHttpProxyPlugin > /tmp/proxy.log 2>&1 &
+
 # Wait for Weston to start
 TIMEOUT=10
 COUNTER=0
