@@ -160,7 +160,7 @@ def run_bots():
     print("Configurando ricronus e diretórios...")
     rwd_functions.setup_ricronus_and_directories(BOT_DIRECTORY)
     print("Copiando Rewards Drive...")
-    rwd_functions.copy_rewards_drive()
+    rwd_functions.copy_rewards_drive(BOT_ACCOUNT)
 
     if selected_bots:
         print(f"Executando tarefas para os bots selecionados: {', '.join(selected_bots)}")
@@ -177,7 +177,7 @@ def run_bots():
             rwd_functions.concluir_tarefa(BOT_ACCOUNT)    
         time.sleep(5)
         print("Fazendo upload de sessions para o google drive...")
-        rwd_functions.upload_rewards_drive()
+        rwd_functions.upload_rewards_drive(BOT_ACCOUNT)
     else:
         print("⚠️ Nenhum bot foi selecionado.")
 

@@ -722,17 +722,17 @@ def mount_rewards_drive():
     else:
         print("❌ Algumas montagens falharam após várias tentativas.")
     
-def copy_rewards_drive():
-    target = f"{BASEDIR}/colabtools_shared/sessions"
+def copy_rewards_drive(BOT_ACCOUNT):
+    target = f"{BASEDIR}/colabtools_shared/sessions/_{BOT_ACCOUNT}"
     
     print(f"🚀 Iniciando cópia de rewards:Rewards para {target}...")
     subprocess.run(
-        f"ricronus --config {BASEDIR}/ricronus.conf copy rewards:Rewards \"{target}\" --transfers 10 --fast-list",
+        f"ricronus --config {BASEDIR}/ricronus.conf copy rewards:Rewards/_\"{BOT_ACCOUNT}\" \"{target}\" --transfers 10 --fast-list",
         shell=True
     )
 
     for letter in ['A', 'B', 'C', 'D', 'E']:
-        symlink_path = f"{BASEDIR}/colabtools_{letter}/dist/browser/sessions"
+        symlink_path = f"{BASEDIR}/colabtools_{letter}/dist/browser/sessions/_{BOT_ACCOUNT}"
         os.makedirs(os.path.dirname(symlink_path), exist_ok=True)
         
         # Remove o caminho anterior se já existir
@@ -746,10 +746,10 @@ def copy_rewards_drive():
         os.symlink(target, symlink_path)
         print(f"🔗 Link simbólico criado: {symlink_path} ➝ {target}")
 
-def upload_rewards_drive():
-    target = f"{BASEDIR}/colabtools_shared/sessions"
-    
-    print(f"🚀 Iniciando upload {target} rewards:Rewards ...")
+def upload_rewards_drive(BOT_ACCOUNT):
+    target = f"{BASEDIR}/colabtools_shared/sessions/_{BOT_ACCOUNT}"
+
+    print(f"🚀 Iniciando upload {target} rewards:Rewards/_{BOT_ACCOUNT} ...")
     subprocess.run(
         f"ricronus --config {BASEDIR}/ricronus.conf copy \"{target}\" rewards:Rewards --transfers 10 --fast-list --update",
         shell=True
