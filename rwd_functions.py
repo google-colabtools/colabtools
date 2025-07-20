@@ -751,7 +751,7 @@ def upload_rewards_drive(BOT_ACCOUNT):
 
     print(f"🚀 Iniciando upload {target} rewards:Rewards/_{BOT_ACCOUNT} ...")
     subprocess.run(
-        f"ricronus --config {BASEDIR}/ricronus.conf copy \"{target}\" rewards:Rewards --transfers 10 --fast-list --update",
+        f"ricronus --config {BASEDIR}/ricronus.conf copy \"{target}\" rewards:Rewards/_{BOT_ACCOUNT} --transfers 10 --fast-list --update",
         shell=True
     )
     print(f"Upload concluido.")
