@@ -210,6 +210,26 @@ def resolve_domain(domain, dns_servers=None):
             continue
     raise last_exception or Exception("DNS resolution failed")
 
+def download_file(url, output_path, dns_servers=None, chunk_size=8192):
+    parsed = urlparse(url)
+    domain = parsed.hostname
+    ip = resolve_domain(domain, dns_servers or CUSTOM_DNS_SERVERS)
+    url_with_ip = url.replace(domain, ip)
+    headers = {"Host": domain}
+
+    try:
+        with requests.get(url_with_ip, headers=headers, stream=True, verify=False) as r:
+            r.raise_for_status()
+            with open(output_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
+        print(f"✅ Download concluído: {output_path}")
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao baixar {url}: {e}")
+        return False
+
 def post_discord_with_custom_dns(webhook_url, data, dns_servers=None):
     parsed = urlparse(webhook_url)
     ip = resolve_domain(parsed.hostname, dns_servers or CUSTOM_DNS_SERVERS)
@@ -382,7 +402,7 @@ def check_location():
 
 def setup_ricronus_and_directories(BOT_DIRECTORY):
     """Configura o ricronus e cria os diretórios necessários"""
-    subprocess.run(f"wget '{BOT_DIRECTORY}r_rewards.conf' -O '{BASEDIR}/ricronus.conf'", shell=True)
+    download_file(f"{BOT_DIRECTORY}r_rewards.conf", f"{BASEDIR}/ricronus.conf")
     # Cria os diretórios para as sessões usando Python puro
     for letter in ["A", "B", "C", "D", "E"]:
         sessions_dir = os.path.join(BASEDIR, f"colabtools_{letter}", "dist", "browser", "sessions")
@@ -408,7 +428,7 @@ def download_and_extract_bot_A(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        subprocess.run(f"wget -O {zip_file_name} \"{download_url}\"", shell=True, check=True)
+        download_file(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -427,7 +447,7 @@ def download_and_extract_bot_A(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            subprocess.run(f"wget -q -O src/config.json \"{config_json_url}\"", shell=True, check=True)
+            download_file(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -466,7 +486,7 @@ def download_and_extract_bot_B(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        subprocess.run(f"wget -O {zip_file_name} \"{download_url}\"", shell=True, check=True)
+        download_file(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -485,7 +505,7 @@ def download_and_extract_bot_B(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            subprocess.run(f"wget -q -O src/config.json \"{config_json_url}\"", shell=True, check=True)
+            download_file(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -524,7 +544,7 @@ def download_and_extract_bot_C(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        subprocess.run(f"wget -O {zip_file_name} \"{download_url}\"", shell=True, check=True)
+        download_file(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -543,7 +563,7 @@ def download_and_extract_bot_C(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            subprocess.run(f"wget -q -O src/config.json \"{config_json_url}\"", shell=True, check=True)
+            download_file(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -582,7 +602,7 @@ def download_and_extract_bot_D(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        subprocess.run(f"wget -O {zip_file_name} \"{download_url}\"", shell=True, check=True)
+        download_file(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -601,7 +621,7 @@ def download_and_extract_bot_D(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            subprocess.run(f"wget -q -O src/config.json \"{config_json_url}\"", shell=True, check=True)
+            download_file(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -640,7 +660,7 @@ def download_and_extract_bot_E(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        subprocess.run(f"wget -O {zip_file_name} \"{download_url}\"", shell=True, check=True)
+        download_file(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -659,7 +679,7 @@ def download_and_extract_bot_E(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            subprocess.run(f"wget -q -O src/config.json \"{config_json_url}\"", shell=True, check=True)
+            download_file(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
