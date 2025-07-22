@@ -32,7 +32,16 @@ echo "Squid is ready"
 echo "Testing public IP and country via Squid proxy..."
 PROXY_IP=$(curl -s --proxy http://127.0.0.1:3128 https://ipinfo.io/ip)
 PROXY_COUNTRY=$(curl -s --proxy http://127.0.0.1:3128 https://ipinfo.io/country)
-echo "Proxy public IP: $PROXY_IP, country: $PROXY_COUNTRY"
+if [ -z "$PROXY_IP" ]; then
+    echo "Proxy public IP: (not detected)"
+else
+    echo "Proxy public IP: $PROXY_IP"
+fi
+if [ -z "$PROXY_COUNTRY" ]; then
+    echo "Proxy country: (not detected)"
+else
+    echo "Proxy country: $PROXY_COUNTRY"
+fi
 
 # Setup runtime directory
 mkdir -p "${XDG_RUNTIME_DIR}"
