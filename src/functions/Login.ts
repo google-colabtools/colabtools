@@ -27,14 +27,14 @@ export class Login {
     }
 
     async login(page: Page, email: string, password: string) {
-        const maxRetries = 1;
+        const maxRetries = 2;
         const retryDelay = 30000; // 30 seconds
         let lastError: any;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 // Navigate to the Bing login page
-                await page.goto('https://rewards.bing.com/signin')
+                await page.goto('https://rewards.bing.com/signin', { timeout: 120000, waitUntil: 'load' }) // Increased timeout
 
                 await page.waitForLoadState('domcontentloaded').catch(() => { })
 
@@ -49,7 +49,7 @@ export class Login {
                     await skipButton.click();
                     this.bot.log(this.bot.isMobile, 'LOGIN', '"Skip for now" button clicked successfully');
                     await this.bot.utils.wait(5000); // Wait a bit after clicking
-                    await page.goto('https://rewards.bing.com/signin')
+                    await page.goto('https://rewards.bing.com/signin', { timeout: 120000, waitUntil: 'load' }) // Increased timeout
                     await page.waitForLoadState('domcontentloaded').catch(() => { })
                     await this.bot.browser.utils.reloadBadPage(page)
                 }
@@ -57,7 +57,7 @@ export class Login {
                 const isLoggedInTest = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 }).then(() => true).catch(() => false)
 
                 if (!isLoggedInTest) {
-                    await page.goto('https://rewards.bing.com/signin')
+                    await page.goto('https://rewards.bing.com/signin', { timeout: 120000, waitUntil: 'load' }) // Increased timeout
                     await page.waitForLoadState('domcontentloaded').catch(() => { })
                     await this.bot.browser.utils.reloadBadPage(page)
                     // Check if account is locked
@@ -74,7 +74,7 @@ export class Login {
                     // Check if account is locked
                     await this.checkAccountLocked(page);
 
-                    const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10_000 })
+                    const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 10000 })
                         .then(() => true)
                         .catch(() => false);
 
@@ -95,7 +95,7 @@ export class Login {
 
                 // We're done logging in
                 this.bot.log(this.bot.isMobile, 'LOGIN', 'Logged in successfully, saved login session!');
-                return; // 成功后直接返回
+                return;
 
             } catch (error) {
                 lastError = error;
@@ -106,20 +106,14 @@ export class Login {
                         `Login attempt ${attempt} failed: ${error}. Retrying in ${retryDelay/1000}s...`, 
                         'warn'
                     );
-                    // 重试前等待
                     await this.bot.utils.wait(retryDelay);
-                    
-                    // 尝试清理页面状态
                     try {
                         await page.reload({ waitUntil: 'domcontentloaded' });
-                    } catch (e) {
-                        // 忽略重载错误
-                    }
+                    } catch (e) {}
                 }
             }
         }
 
-        // 所有重试都失败了，抛出最后一个错误
         throw this.bot.log(this.bot.isMobile, 'LOGIN', `Failed after ${maxRetries} attempts. Last error: ${lastError}`, 'error');
     }
 
