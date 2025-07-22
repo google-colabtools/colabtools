@@ -32,17 +32,17 @@ export default class BrowserFunc {
                 return
             }
 
-            // 增加超时时间
+            // Increase timeout
             await page.goto(this.bot.config.baseURL, { timeout: 120000, waitUntil: 'load' })
 
             const maxIterations = 5 // Maximum iterations set to 5
 
             for (let iteration = 1; iteration <= maxIterations; iteration++) {
-                await this.bot.utils.wait(3000)
+                await this.bot.utils.wait(10000)
                 await this.bot.browser.utils.tryDismissAllMessages(page)
 
                 // Check if account is suspended
-                const isSuspended = await page.waitForSelector('#suspendedAccountHeader', { state: 'visible', timeout: 2000 }).then(() => true).catch(() => false)
+                const isSuspended = await page.waitForSelector('#suspendedAccountHeader', { state: 'visible', timeout: 10000 }).then(() => true).catch(() => false)
                 if (isSuspended) {
                     this.bot.log(this.bot.isMobile, 'GO-HOME', 'This account is suspended!', 'error')
                     throw new Error('Account has been suspended!')
@@ -50,7 +50,7 @@ export default class BrowserFunc {
 
                 try {
                     // If activities are found, exit the loop
-                    await page.waitForSelector('#more-activities', { timeout: 1000 })
+                    await page.waitForSelector('#more-activities', { timeout: 10000 })
                     this.bot.log(this.bot.isMobile, 'GO-HOME', 'Visited homepage successfully')
                     break
 
@@ -64,25 +64,25 @@ export default class BrowserFunc {
                 if (currentURL.hostname !== dashboardURL.hostname) {
                     await this.bot.browser.utils.tryDismissAllMessages(page)
 
-                    await this.bot.utils.wait(2000)
-                    // 增加超时时间
+                    await this.bot.utils.wait(10000)
+                    // Increase timeout
                     await page.goto(this.bot.config.baseURL, { timeout: 120000, waitUntil: 'load' })
                 } else {
                     this.bot.log(this.bot.isMobile, 'GO-HOME', 'Visited homepage successfully')
                     break
                 }
 
-                await this.bot.utils.wait(5000)
+                await this.bot.utils.wait(10000)
             }
 
         } catch (error: any) {
-            // 针对超时错误，尝试刷新页面
+            // For timeout errors, try to refresh the page
             if (error.message?.includes('net::ERR_TIMED_OUT')) {
-                this.bot.log(this.bot.isMobile, 'GO-HOME', '页面加载超时，尝试刷新页面重试', 'warn')
+                this.bot.log(this.bot.isMobile, 'GO-HOME', 'Page load timed out, trying to refresh and retry', 'warn')
                 try {
                     await page.reload({ waitUntil: 'load', timeout: 120000 })
                 } catch (reloadError) {
-                    this.bot.log(this.bot.isMobile, 'GO-HOME', '刷新页面仍然超时，建议重启浏览器 context', 'error')
+                    this.bot.log(this.bot.isMobile, 'GO-HOME', 'Page reload still timed out, consider restarting browser context', 'error')
                 }
             }
             throw this.bot.log(this.bot.isMobile, 'GO-HOME', 'An error occurred:' + error, 'error')
@@ -104,21 +104,21 @@ export default class BrowserFunc {
                 const currentURL = new URL(this.bot.homePage.url())
 
                 if (currentURL.hostname !== dashboardURL.hostname) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', '页面不在 dashboard，正在重定向...')
+                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', 'Page is not on dashboard, redirecting...')
                     await this.goHome(this.bot.homePage)
                 }
 
-                // 重载前确保等待足够长时间
-                await this.bot.utils.wait(5000);
+                // Ensure to wait long enough before reload
+                await this.bot.utils.wait(10000);
 
-                // 增加超时时间
+                // Increase timeout
                 await this.bot.homePage.reload({ waitUntil: 'networkidle', timeout: 90000 })
                 
-                // 等待页面主要内容加载
-                await this.bot.homePage.waitForSelector('#more-activities', { timeout: 30000 })
+                // Wait for main page content to load
+                await this.bot.homePage.waitForSelector('#more-activities', { timeout: 10000 })
                 
-                // 额外等待确保脚本完全加载
-                await this.bot.utils.wait(3000);
+                // Extra wait to ensure scripts are fully loaded
+                await this.bot.utils.wait(10000);
 
                 const scriptContent = await this.bot.homePage.evaluate(() => {
                     const scripts = Array.from(document.querySelectorAll('script'))
@@ -132,13 +132,13 @@ export default class BrowserFunc {
                 })
 
                 if (!scriptContent) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `尝试 ${attempt}: 未找到 dashboard 数据，等待重试...`, 'warn')
+                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `Attempt ${attempt}: Dashboard data not found, waiting to retry...`, 'warn')
                     throw new Error('Dashboard data not found within script')
                 }
 
                 const dashboardData = await this.bot.homePage.evaluate((scriptContent: string) => {
                     try {
-                        // 尝试多种可能的提取方式
+                        // Try multiple possible extraction methods
                         const regexes = [
                             /var dashboard = (\{.*?\});/s,
                             /dashboard = (\{.*?\});/s,
@@ -153,47 +153,47 @@ export default class BrowserFunc {
                         }
                         return null
                     } catch (e) {
-                        console.error('解析 dashboard 数据失败:', e)
+                        console.error('Failed to parse dashboard data:', e)
                         return null
                     }
                 }, scriptContent)
 
                 if (!dashboardData) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `尝试 ${attempt}: 解析 dashboard 数据失败，等待重试...`, 'warn')
+                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `Attempt ${attempt}: Failed to parse dashboard data, waiting to retry...`, 'warn')
                     throw new Error('Unable to parse dashboard script')
                 }
 
                 if (attempt > 1) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `成功获取 dashboard 数据，尝试次数: ${attempt}`)
+                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `Successfully fetched dashboard data, attempts: ${attempt}`)
                 }
 
                 return dashboardData
 
             } catch (error: any) {
                 lastError = error
-                // 针对超时错误，尝试刷新页面
+                // For timeout errors, try to refresh the page
                 if (error.message?.includes('net::ERR_TIMED_OUT')) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `页面加载超时，尝试刷新页面重试 (第${attempt}次)`, 'warn')
+                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `Page load timed out, trying to refresh page and retry (attempt ${attempt})`, 'warn')
                     try {
                         await this.bot.homePage.reload({ waitUntil: 'load', timeout: 120000 })
                     } catch (reloadError) {
-                        this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', '刷新页面仍然超时，建议重启浏览器 context', 'error')
+                        this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', 'Page reload still timed out, consider restarting browser context', 'error')
                     }
                 }
                 if (attempt < maxRetries) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `尝试 ${attempt}/${maxRetries} 失败: ${error}. ${retryDelay/1000}秒后重试...`, 'warn')
+                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `Attempt ${attempt}/${maxRetries} failed: ${error}. Retrying in ${retryDelay/1000} seconds...`, 'warn')
                     await this.bot.utils.wait(retryDelay)
                     
-                    // 在重试之前尝试刷新登录状态
+                    // Try to refresh login status before retry
                     if (attempt === 2) {
-                        this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', '尝试重新验证登录状态...')
+                        this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', 'Trying to revalidate login status...')
                         await this.goHome(this.bot.homePage)
                     }
                 }
             }
         }
 
-        throw this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `${maxRetries} 次尝试后失败。最后错误: ${lastError}`, 'error')
+        throw this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `Failed after ${maxRetries} attempts. Last error: ${lastError}`, 'error')
     }
 
     /**
@@ -281,7 +281,7 @@ export default class BrowserFunc {
                 let geoLocale = data.userProfile.attributes.country
                 geoLocale = (this.bot.config.searchSettings.useGeoLocaleQueries && geoLocale.length === 2) ? geoLocale.toLowerCase() : 'cn'
 
-                // 增加请求超时设置和重试
+                // Add request timeout and retry
                 const userDataRequest: AxiosRequestConfig = {
                     url: 'https://prod.rewardsplatform.microsoft.com/dapi/me?channel=SAAndroid&options=613',
                     method: 'GET',
@@ -291,7 +291,7 @@ export default class BrowserFunc {
                         'X-Rewards-Language': 'zh',
                         'User-Agent': 'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36'
                     },
-                    timeout: 30000, // 30秒超时
+                    timeout: 30000, // 30 seconds timeout
                     validateStatus: (status) => status >= 200 && status < 300
                 }
 
@@ -322,19 +322,19 @@ export default class BrowserFunc {
                 return points
 
             } catch (error: any) {
-                const errorMessage = error?.message || '未知错误'
-                this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', `尝试 ${attempt}/${maxRetries} 失败: ${errorMessage}`, 'warn')
+                const errorMessage = error?.message || 'Unknown error'
+                this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', `Attempt ${attempt}/${maxRetries} failed: ${errorMessage}`, 'warn')
                 
                 if (attempt === maxRetries) {
-                    throw this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', `达到最大重试次数 (${maxRetries}). 最后错误: ${errorMessage}`, 'error')
+                    throw this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', `Reached max retry count (${maxRetries}). Last error: ${errorMessage}`, 'error')
                 }
 
-                // 等待一段时间后重试
+                // Wait before retrying
                 await this.bot.utils.wait(retryDelay)
             }
         }
 
-        throw this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', '无法获取应用可获得积分信息', 'error')
+        throw this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', 'Unable to get app earnable points info', 'error')
     }
 
     /**
@@ -388,7 +388,7 @@ export default class BrowserFunc {
     async waitForQuizRefresh(page: Page): Promise<boolean> {
         try {
             await page.waitForSelector('span.rqMCredits', { state: 'visible', timeout: 10000 })
-            await this.bot.utils.wait(2000)
+            await this.bot.utils.wait(10000)
 
             return true
         } catch (error) {
