@@ -27,7 +27,7 @@ export class Login {
     }
 
     async login(page: Page, email: string, password: string) {
-        const maxRetries = 2;
+        const maxRetries = 1;
         const retryDelay = 30000; // 30 seconds
         let lastError: any;
 
