@@ -65,9 +65,6 @@ class Browser {
                 '--ignore-certificate-errors', // 忽略所有证书错误
                 '--ignore-certificate-errors-spki-list', // 忽略指定 SPKI 列表的证书错误
                 '--ignore-ssl-errors', // 忽略 SSL 错误
-                '--enable-features=DnsOverHttps', //启用 DNS over HTTPS
-                '--dns-over-https-mode=secure', // 设置 DNS over HTTPS 模式为安全
-                '--dns-over-https-servers=https://dns.google/dns-query,https://cloudflare-dns.com/dns-query,https://dns.quad9.net/dns-query,https://dns.adguard.com/dns-query' // 使用 Google 的 DNS over HTTPS 服务器
             ]
         })
 
