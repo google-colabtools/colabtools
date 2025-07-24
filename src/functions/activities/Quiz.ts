@@ -58,6 +58,7 @@ export class Quiz extends Workers {
                     const correctOption = quizData.correctAnswer
 
                     for (let i = 0; i < quizData.numberOfOptions; i++) {
+
                         const answerSelector = await page.waitForSelector(`#rqAnswerOption${i}`, { state: 'visible', timeout: 10000 })
                         const dataOption = await answerSelector?.evaluate(el => el.getAttribute('data-option'))
 

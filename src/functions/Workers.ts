@@ -90,38 +90,16 @@ export class Workers {
         const morePromotions = data.morePromotions
 
         // Check if there is a promotional item
-        if (data.promotionalItem) {
+        if (data.promotionalItem) { // Convert and add the promotional item to the array
             morePromotions.push(data.promotionalItem as unknown as MorePromotion)
         }
 
-        // 更严格的筛选条件：
-        // 1. !x.complete - 任务未完成
-        // 2. x.pointProgressMax > 0 - 有积分可赚取
-        // 3. x.exclusiveLockedFeatureStatus !== 'locked' - 任务未锁定
-        // 4. x.promotionType in ['quiz', 'urlreward'] - 支持的任务类型
-        // 5. x.pointProgress < x.pointProgressMax - 确保积分未达到上限
-        const activitiesUncompleted = morePromotions?.filter(x => 
-            !x.complete && 
-            x.pointProgressMax > 0 && 
-            x.exclusiveLockedFeatureStatus !== 'locked' &&
-            ['quiz', 'urlreward'].includes(x.promotionType) &&
-            x.pointProgress < x.pointProgressMax
-        ) ?? []
+        const activitiesUncompleted = morePromotions?.filter(x => !x.complete && x.pointProgressMax > 0 && x.exclusiveLockedFeatureStatus !== 'locked') ?? []
 
         if (!activitiesUncompleted.length) {
             this.bot.log(this.bot.isMobile, 'MORE-PROMOTIONS', 'All "More Promotion" items have already been completed')
             return
         }
-
-        // 添加详细日志
-        this.bot.log(this.bot.isMobile, 'MORE-PROMOTIONS', `Found ${activitiesUncompleted.length} incomplete promotions:`)
-        activitiesUncompleted.forEach(x => {
-            this.bot.log(
-                this.bot.isMobile, 
-                'MORE-PROMOTIONS', 
-                `- ${x.title} (${x.promotionType}): ${x.pointProgress}/${x.pointProgressMax} points`
-            )
-        })
 
         // Solve Activities
         this.bot.log(this.bot.isMobile, 'MORE-PROMOTIONS', 'Started solving "More Promotions" items')
@@ -169,37 +147,6 @@ export class Workers {
                 } else if (activity.name.toLowerCase().includes('membercenter') || activity.name.toLowerCase().includes('exploreonbing')) {
                     selector = `[data-bi-id^="${activity.name}"] .pointLink:not(.contentContainer .pointLink)`
                 }
-
-                // 等待页面加载并等待confetti动画消失
-                await activityPage.waitForLoadState('domcontentloaded')
-                await this.bot.utils.wait(2000)
-                
-                // 尝试移除confetti元素
-                await activityPage.evaluate(() => {
-                    const confettiElements = document.querySelectorAll('.confetti-image-block, .dashboardPopUpModalImageContainer');
-                    confettiElements.forEach(el => el.remove());
-                }).catch(() => {});
-
-                // 检查按钮是否存在
-                const buttonExists = await activityPage.$(selector).then(Boolean)
-                if (!buttonExists) {
-                    this.bot.log(
-                        this.bot.isMobile, 
-                        'ACTIVITY', 
-                        `Activity "${activity.title}" appears to be already completed (button not found)`
-                    )
-                    // 标记任务完成，继续下一个
-                    continue
-                }
-
-                // 使用force选项强制点击
-                await activityPage.click(selector, { 
-                    timeout: 5000,
-                    force: true // 忽略覆盖元素强制点击
-                }).catch(async (error) => {
-                    this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to click button for "${activity.title}": ${error}`, 'warn')
-                    return
-                })
 
                 // Wait for the new tab to fully load, ignore error.
                 /*
@@ -252,20 +199,13 @@ export class Workers {
                         // Search on Bing are subtypes of "urlreward"
                         if (activity.name.toLowerCase().includes('exploreonbing')) {
                             this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity type: "SearchOnBing" title: "${activity.title}"`)
-                            await activityPage.click(selector, { timeout: 5000 }).catch(async (error) => {
-                                this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to click SearchOnBing button for "${activity.title}": ${error}`, 'warn')
-                                return
-                            })
+                            await activityPage.click(selector)
                             activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                             await this.bot.activities.doSearchOnBing(activityPage, activity)
 
                         } else {
                             this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity type: "UrlReward" title: "${activity.title}"`)
-                            // 尝试点击按钮，如果失败则认为任务已完成
-                            await activityPage.click(selector, { timeout: 5000 }).catch(async (error) => {
-                                this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to click UrlReward button for "${activity.title}": ${error}`, 'warn')
-                                return
-                            })
+                            await activityPage.click(selector)
                             activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                             await this.bot.activities.doUrlReward(activityPage)
                         }

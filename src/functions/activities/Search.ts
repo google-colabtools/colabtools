@@ -173,7 +173,6 @@ export class Search extends Workers {
                 this.searchPageURL = new URL(resultPage.url()).href // Set the results page
 
                 await this.bot.browser.utils.reloadBadPage(resultPage)
-                await this.bot.browser.utils.tryDismissAllMessages(resultPage)
 
                 if (this.bot.config.searchSettings.scrollRandomResults) {
                     await this.bot.utils.wait(2000)
@@ -196,11 +195,6 @@ export class Search extends Workers {
                     break
 
                 }
-
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); 
-                const screenshotPath = `./search_failed_${timestamp}.png`;
-                await searchPage.screenshot({ path: screenshotPath });
-                await this.bot.browser.utils.tryDismissAllMessages(searchPage)
 
                 this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search failed, An error occurred:' + error, 'error')
                 this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Retrying search, attempt ${i}/5`, 'warn')

@@ -32,8 +32,7 @@ export default class BrowserFunc {
                 return
             }
 
-            // 增加超时时间
-            await page.goto(this.bot.config.baseURL, { timeout: 120000, waitUntil: 'load' })
+            await page.goto(this.bot.config.baseURL)
 
             const maxIterations = 5 // Maximum iterations set to 5
 
@@ -65,8 +64,7 @@ export default class BrowserFunc {
                     await this.bot.browser.utils.tryDismissAllMessages(page)
 
                     await this.bot.utils.wait(2000)
-                    // 增加超时时间
-                    await page.goto(this.bot.config.baseURL, { timeout: 120000, waitUntil: 'load' })
+                    await page.goto(this.bot.config.baseURL)
                 } else {
                     this.bot.log(this.bot.isMobile, 'GO-HOME', 'Visited homepage successfully')
                     break
@@ -75,16 +73,7 @@ export default class BrowserFunc {
                 await this.bot.utils.wait(5000)
             }
 
-        } catch (error: any) {
-            // 针对超时错误，尝试刷新页面
-            if (error.message?.includes('net::ERR_TIMED_OUT')) {
-                this.bot.log(this.bot.isMobile, 'GO-HOME', '页面加载超时，尝试刷新页面重试', 'warn')
-                try {
-                    await page.reload({ waitUntil: 'load', timeout: 120000 })
-                } catch (reloadError) {
-                    this.bot.log(this.bot.isMobile, 'GO-HOME', '刷新页面仍然超时，建议重启浏览器 context', 'error')
-                }
-            }
+        } catch (error) {
             throw this.bot.log(this.bot.isMobile, 'GO-HOME', 'An error occurred:' + error, 'error')
         }
     }
@@ -94,106 +83,52 @@ export default class BrowserFunc {
      * @returns {DashboardData} Object of user bing rewards dashboard data
     */
     async getDashboardData(): Promise<DashboardData> {
-        const maxRetries = 5;
-        const retryDelay = 10000;
-        let lastError: any;
+        const dashboardURL = new URL(this.bot.config.baseURL)
+        const currentURL = new URL(this.bot.homePage.url())
 
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                const dashboardURL = new URL(this.bot.config.baseURL)
-                const currentURL = new URL(this.bot.homePage.url())
-
-                if (currentURL.hostname !== dashboardURL.hostname) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', '页面不在 dashboard，正在重定向...')
-                    await this.goHome(this.bot.homePage)
-                }
-
-                // 重载前确保等待足够长时间
-                await this.bot.utils.wait(5000);
-
-                // 增加超时时间
-                await this.bot.homePage.reload({ waitUntil: 'networkidle', timeout: 90000 })
-                
-                // 等待页面主要内容加载
-                await this.bot.homePage.waitForSelector('#more-activities', { timeout: 30000 })
-                
-                // 额外等待确保脚本完全加载
-                await this.bot.utils.wait(3000);
-
-                const scriptContent = await this.bot.homePage.evaluate(() => {
-                    const scripts = Array.from(document.querySelectorAll('script'))
-                    const targetScript = scripts.find(script => 
-                        script.innerText && (
-                            script.innerText.includes('var dashboard') || 
-                            script.innerText.includes('dashboard =')
-                        )
-                    )
-                    return targetScript?.innerText || null
-                })
-
-                if (!scriptContent) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `尝试 ${attempt}: 未找到 dashboard 数据，等待重试...`, 'warn')
-                    throw new Error('Dashboard data not found within script')
-                }
-
-                const dashboardData = await this.bot.homePage.evaluate((scriptContent: string) => {
-                    try {
-                        // 尝试多种可能的提取方式
-                        const regexes = [
-                            /var dashboard = (\{.*?\});/s,
-                            /dashboard = (\{.*?\});/s,
-                            /\_w\.dashboard = (\{.*?\});/s
-                        ]
-                        
-                        for (const regex of regexes) {
-                            const match = regex.exec(scriptContent)
-                            if (match && match[1]) {
-                                return JSON.parse(match[1])
-                            }
-                        }
-                        return null
-                    } catch (e) {
-                        console.error('解析 dashboard 数据失败:', e)
-                        return null
-                    }
-                }, scriptContent)
-
-                if (!dashboardData) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `尝试 ${attempt}: 解析 dashboard 数据失败，等待重试...`, 'warn')
-                    throw new Error('Unable to parse dashboard script')
-                }
-
-                if (attempt > 1) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `成功获取 dashboard 数据，尝试次数: ${attempt}`)
-                }
-
-                return dashboardData
-
-            } catch (error: any) {
-                lastError = error
-                // 针对超时错误，尝试刷新页面
-                if (error.message?.includes('net::ERR_TIMED_OUT')) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `页面加载超时，尝试刷新页面重试 (第${attempt}次)`, 'warn')
-                    try {
-                        await this.bot.homePage.reload({ waitUntil: 'load', timeout: 120000 })
-                    } catch (reloadError) {
-                        this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', '刷新页面仍然超时，建议重启浏览器 context', 'error')
-                    }
-                }
-                if (attempt < maxRetries) {
-                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `尝试 ${attempt}/${maxRetries} 失败: ${error}. ${retryDelay/1000}秒后重试...`, 'warn')
-                    await this.bot.utils.wait(retryDelay)
-                    
-                    // 在重试之前尝试刷新登录状态
-                    if (attempt === 2) {
-                        this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', '尝试重新验证登录状态...')
-                        await this.goHome(this.bot.homePage)
-                    }
-                }
+        try {
+            // Should never happen since tasks are opened in a new tab!
+            if (currentURL.hostname !== dashboardURL.hostname) {
+                this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', 'Provided page did not equal dashboard page, redirecting to dashboard page')
+                await this.goHome(this.bot.homePage)
             }
+
+            // Reload the page to get new data
+            await this.bot.homePage.reload({ waitUntil: 'domcontentloaded' })
+
+            const scriptContent = await this.bot.homePage.evaluate(() => {
+                const scripts = Array.from(document.querySelectorAll('script'))
+                const targetScript = scripts.find(script => script.innerText.includes('var dashboard'))
+
+                return targetScript?.innerText ? targetScript.innerText : null
+            })
+
+            if (!scriptContent) {
+                throw this.bot.log(this.bot.isMobile, 'GET-DASHBOARD-DATA', 'Dashboard data not found within script', 'error')
+            }
+
+            // Extract the dashboard object from the script content
+            const dashboardData = await this.bot.homePage.evaluate(scriptContent => {
+                // Extract the dashboard object using regex
+                const regex = /var dashboard = (\{.*?\});/s
+                const match = regex.exec(scriptContent)
+
+                if (match && match[1]) {
+                    return JSON.parse(match[1])
+                }
+
+            }, scriptContent)
+
+            if (!dashboardData) {
+                throw this.bot.log(this.bot.isMobile, 'GET-DASHBOARD-DATA', 'Unable to parse dashboard script', 'error')
+            }
+
+            return dashboardData
+
+        } catch (error) {
+            throw this.bot.log(this.bot.isMobile, 'GET-DASHBOARD-DATA', `Error fetching dashboard data: ${error}`, 'error')
         }
 
-        throw this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `${maxRetries} 次尝试后失败。最后错误: ${lastError}`, 'error')
     }
 
     /**
@@ -261,80 +196,56 @@ export default class BrowserFunc {
      * @returns {number} Total earnable points
     */
     async getAppEarnablePoints(accessToken: string) {
-        const maxRetries = 3;
-        const retryDelay = 5000;
-
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                const points = {
-                    readToEarn: 0,
-                    checkIn: 0,
-                    totalEarnablePoints: 0
-                }
-
-                const eligibleOffers = [
-                    'ENUS_readarticle3_30points',
-                    'Gamification_Sapphire_DailyCheckIn'
-                ]
-
-                const data = await this.getDashboardData()
-                let geoLocale = data.userProfile.attributes.country
-                geoLocale = (this.bot.config.searchSettings.useGeoLocaleQueries && geoLocale.length === 2) ? geoLocale.toLowerCase() : 'cn'
-
-                // 增加请求超时设置和重试
-                const userDataRequest: AxiosRequestConfig = {
-                    url: 'https://prod.rewardsplatform.microsoft.com/dapi/me?channel=SAAndroid&options=613',
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'X-Rewards-Country': geoLocale,
-                        'X-Rewards-Language': 'zh',
-                        'User-Agent': 'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36'
-                    },
-                    timeout: 30000, // 30秒超时
-                    validateStatus: (status) => status >= 200 && status < 300
-                }
-
-                const userDataResponse = await this.bot.axios.request(userDataRequest)
-                
-                if (!userDataResponse?.data?.response) {
-                    throw new Error('Invalid response data')
-                }
-
-                const userData: AppUserData = userDataResponse.data
-                const eligibleActivities = userData.response.promotions.filter((x) => eligibleOffers.includes(x.attributes.offerid ?? ''))
-
-                for (const item of eligibleActivities) {
-                    if (item.attributes.type === 'msnreadearn') {
-                        points.readToEarn = parseInt(item.attributes.pointmax ?? '') - parseInt(item.attributes.pointprogress ?? '')
-                        break
-                    } else if (item.attributes.type === 'checkin') {
-                        const checkInDay = parseInt(item.attributes.progress ?? '') % 7
-
-                        if (checkInDay < 6 && (new Date()).getDate() != (new Date(item.attributes.last_updated ?? '')).getDate()) {
-                            points.checkIn = parseInt(item.attributes['day_' + (checkInDay + 1) + '_points'] ?? '')
-                        }
-                        break
-                    }
-                }
-
-                points.totalEarnablePoints = points.readToEarn + points.checkIn
-                return points
-
-            } catch (error: any) {
-                const errorMessage = error?.message || '未知错误'
-                this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', `尝试 ${attempt}/${maxRetries} 失败: ${errorMessage}`, 'warn')
-                
-                if (attempt === maxRetries) {
-                    throw this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', `达到最大重试次数 (${maxRetries}). 最后错误: ${errorMessage}`, 'error')
-                }
-
-                // 等待一段时间后重试
-                await this.bot.utils.wait(retryDelay)
+        try {
+            const points = {
+                readToEarn: 0,
+                checkIn: 0,
+                totalEarnablePoints: 0
             }
-        }
 
-        throw this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', '无法获取应用可获得积分信息', 'error')
+            const eligibleOffers = [
+                'ENUS_readarticle3_30points',
+                'Gamification_Sapphire_DailyCheckIn'
+            ]
+
+            const data = await this.getDashboardData()
+            let geoLocale = data.userProfile.attributes.country
+            geoLocale = (this.bot.config.searchSettings.useGeoLocaleQueries && geoLocale.length === 2) ? geoLocale.toLowerCase() : 'us'
+
+            const userDataRequest: AxiosRequestConfig = {
+                url: 'https://prod.rewardsplatform.microsoft.com/dapi/me?channel=SAAndroid&options=613',
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'X-Rewards-Country': geoLocale,
+                    'X-Rewards-Language': 'en'
+                }
+            }
+
+            const userDataResponse: AppUserData = (await this.bot.axios.request(userDataRequest)).data
+            const userData = userDataResponse.response
+            const eligibleActivities = userData.promotions.filter((x) => eligibleOffers.includes(x.attributes.offerid ?? ''))
+
+            for (const item of eligibleActivities) {
+                if (item.attributes.type === 'msnreadearn') {
+                    points.readToEarn = parseInt(item.attributes.pointmax ?? '') - parseInt(item.attributes.pointprogress ?? '')
+                    break
+                } else if (item.attributes.type === 'checkin') {
+                    const checkInDay = parseInt(item.attributes.progress ?? '') % 7
+
+                    if (checkInDay < 6 && (new Date()).getDate() != (new Date(item.attributes.last_updated ?? '')).getDate()) {
+                        points.checkIn = parseInt(item.attributes['day_' + (checkInDay + 1) + '_points'] ?? '')
+                    }
+                    break
+                }
+            }
+
+            points.totalEarnablePoints = points.readToEarn + points.checkIn
+
+            return points
+        } catch (error) {
+            throw this.bot.log(this.bot.isMobile, 'GET-APP-EARNABLE-POINTS', 'An error occurred:' + error, 'error')
+        }
     }
 
     /**
@@ -361,7 +272,7 @@ export default class BrowserFunc {
             const html = await page.content()
             const $ = load(html)
 
-            const scriptContent = $('script').filter((index: any, element: any) => {
+            const scriptContent = $('script').filter((index, element) => {
                 return $(element).text().includes('_w.rewardsQuizRenderInfo')
             }).text()
 

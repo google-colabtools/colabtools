@@ -1,12 +1,8 @@
-// External
 import playwright, { BrowserContext } from 'rebrowser-playwright'
+
 import { newInjectedContext } from 'fingerprint-injector'
 import { FingerprintGenerator } from 'fingerprint-generator'
 
-// Built-in
-import * as fs from 'fs';
-
-// Internals
 import { MicrosoftRewardsBot } from '../index'
 import { loadSessionData, saveFingerprintData } from '../util/Load'
 import { updateFingerprintUserAgent } from '../util/UserAgent'
@@ -29,27 +25,8 @@ class Browser {
     }
 
     async createBrowser(proxy: AccountProxy, email: string): Promise<BrowserContext> {
-        const getBrowserPath = () => {
-        const thoriumPath = process.env.THORIUM_BIN;
-        const chromePath = process.env.CHROME_BIN;
-        const fallbackPath = '/usr/bin/thorium-browser';
-
-        if (thoriumPath && fs.existsSync(thoriumPath)) {
-            console.log(`Usando THORIUM_BIN: ${thoriumPath}`);
-            return thoriumPath;
-        }
-
-        if (chromePath && fs.existsSync(chromePath)) {
-            console.log(`THORIUM_BIN não encontrado. Usando CHROME_BIN: ${chromePath}`);
-            return chromePath;
-        }
-
-        console.log(`Nenhum dos envs encontrados ou válidos. Usando fallback: ${fallbackPath}`);
-        return fallbackPath;
-        };
-        
         const browser = await playwright.chromium.launch({
-            executablePath: getBrowserPath(),
+            //channel: 'msedge', // Uses Edge instead of chrome
             headless: this.bot.config.headless,
             ...(proxy.url && { proxy: { username: proxy.username, password: proxy.password, server: `${proxy.url}:${proxy.port}` } }),
             args: [
@@ -65,9 +42,6 @@ class Browser {
                 '--ignore-certificate-errors', // 忽略所有证书错误
                 '--ignore-certificate-errors-spki-list', // 忽略指定 SPKI 列表的证书错误
                 '--ignore-ssl-errors', // 忽略 SSL 错误
-                '--enable-features=DnsOverHttps', //启用 DNS over HTTPS
-                '--dns-over-https-mode=secure', // 设置 DNS over HTTPS 模式为安全
-                '--dns-over-https-servers=https://dns.google/dns-query,https://cloudflare-dns.com/dns-query,https://dns.quad9.net/dns-query,https://dns.adguard.com/dns-query' // 使用 Google 的 DNS over HTTPS 服务器
             ]
         })
 
