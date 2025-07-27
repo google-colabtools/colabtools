@@ -1,7 +1,10 @@
-from flask import Flask, render_template_string, send_from_directory, abort, url_for, request, redirect
+from flask import Flask, render_template_string, send_from_directory, abort, url_for, request, redirect, send_file
 import os
 from werkzeug.utils import secure_filename
 import time
+import zipfile
+import tempfile
+import shutil
 
 app = Flask(__name__)
 
@@ -89,7 +92,7 @@ def home():
                 <h1>App is Running...</h1>
                 <p>Seu serviço Flask está ativo e pronto!</p>
                 <p><b>Uptime:</b> <span id="uptime"></span></p>
-                <a href="/files" class="button" target="_blank" rel="noopener noreferrer">Explorar Arquivos</a>
+                <a href="/files" class="button">Explorar Arquivos</a>
             </div>
         </body>
     </html>
@@ -123,6 +126,14 @@ FILE_EXPLORER_TEMPLATE = """
             transition: background-color 0.3s;
         }
         input[type="submit"]:hover { background-color: #a2e0ff; }
+        .item-actions { display: flex; gap: 10px; align-items: center; }
+        .download-btn {
+            background-color: #28a745; color: white; border: none;
+            padding: 4px 8px; border-radius: 4px; font-size: 12px;
+            cursor: pointer; text-decoration: none;
+            transition: background-color 0.3s;
+        }
+        .download-btn:hover { background-color: #218838; }
     </style>
 </head>
 <body>
@@ -144,7 +155,12 @@ FILE_EXPLORER_TEMPLATE = """
         <h2>Diretórios</h2>
         <ul>
             {% for dir in dirs %}
-            <li><a class="dir" href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + dir) }}">{{ dir }}</a></li>
+            <li>
+                <a class="dir" href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + dir) }}">{{ dir }}</a>
+                <div class="item-actions">
+                    <a href="{{ url_for('download_folder', subpath=(current_path + '/' if current_path else '') + dir) }}" class="download-btn">📥 ZIP</a>
+                </div>
+            </li>
             {% else %}
             <li>Nenhum diretório encontrado.</li>
             {% endfor %}
@@ -153,7 +169,12 @@ FILE_EXPLORER_TEMPLATE = """
         <h2>Arquivos</h2>
         <ul>
             {% for file in files %}
-            <li><a class="file" href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + file) }}">{{ file }}</a></li>
+            <li>
+                <a class="file" href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + file) }}">{{ file }}</a>
+                <div class="item-actions">
+                    <a href="{{ url_for('file_explorer', subpath=(current_path + '/' if current_path else '') + file) }}" class="download-btn">📥 Download</a>
+                </div>
+            </li>
             {% else %}
             <li>Nenhum arquivo encontrado.</li>
             {% endfor %}
@@ -162,6 +183,37 @@ FILE_EXPLORER_TEMPLATE = """
 </body>
 </html>
 """
+
+@app.route('/download_folder/<path:subpath>')
+def download_folder(subpath):
+    safe_base_dir = os.path.abspath(BASE_DIR)
+    folder_path = os.path.abspath(os.path.join(safe_base_dir, subpath))
+    
+    if not folder_path.startswith(safe_base_dir) or not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+        abort(404)
+    
+    # Cria um arquivo temporário ZIP
+    temp_dir = tempfile.mkdtemp()
+    folder_name = os.path.basename(folder_path)
+    zip_filename = f"{folder_name}.zip"
+    zip_path = os.path.join(temp_dir, zip_filename)
+    
+    try:
+        # Cria o arquivo ZIP
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(folder_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, folder_path)
+                    zipf.write(file_path, arcname)
+        
+        # Envia o arquivo ZIP
+        return send_file(zip_path, as_attachment=True, download_name=zip_filename, mimetype='application/zip')
+    
+    except Exception as e:
+        # Limpa o diretório temporário em caso de erro
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        abort(500)
 
 @app.route('/files/', methods=['GET', 'POST'])
 @app.route('/files/<path:subpath>', methods=['GET', 'POST'])
@@ -214,4 +266,4 @@ def file_explorer(subpath=''):
         return send_from_directory(directory, filename, as_attachment=force_download)
 
 if __name__ == "__main__":
-    app.run(ssl_context='adhoc')
+    app.run()
