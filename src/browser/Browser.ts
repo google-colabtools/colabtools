@@ -55,7 +55,7 @@ class Browser {
             args: [
                 '--disable-background-networking',
                 '--test-type', // 测试模式
-                //'--disable-thorium-dns-config', // 禁用 Thorium DNS 配置
+                '--disable-thorium-dns-config', // 禁用 Thorium DNS 配置
                 '--disable-quic', // 禁用quic连接
                 '--no-first-run', // 跳过首次运行检查
                 '--blink-settings=imagesEnabled=false', // 禁用图片加载
