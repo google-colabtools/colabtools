@@ -378,17 +378,43 @@ def check_location():
     except requests.RequestException as e:
         raise RuntimeError(f"Failed to retrieve location information for IP: {ip}") from e
 
-def wget_with_proxy_fallback(url, output, host="127.0.0.1", port=3128, timeout=2):
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            cmd = f'wget -O "{output}" "{url}" -e use_proxy=yes -e http_proxy={host}:{port}'
-    except Exception:
-        cmd = f'wget -O "{output}" "{url}"'
-    subprocess.run(cmd, shell=True, check=True)
+def curl_with_proxy_fallback(url, output, host="127.0.0.1", port=3128, timeout=2):
+    max_retries = 3
+    retry_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            # Try with proxy first if available
+            try:
+                with socket.create_connection((host, port), timeout=timeout):
+                    cmd = f'curl --connect-timeout 30 --max-time 60 --retry 3 -o "{output}" "{url}" --proxy {host}:{port}'
+            except Exception:
+                cmd = f'curl --connect-timeout 30 --max-time 60 --retry 3 -o "{output}" "{url}"'
+            
+            # Execute the command
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully downloaded: {url}")
+                return
+            else:
+                print(f"⚠️ Attempt {attempt + 1}/{max_retries} failed: {result.stderr}")
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    
+        except Exception as e:
+            print(f"⚠️ Exception on attempt {attempt + 1}/{max_retries}: {e}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+    
+    # If all attempts failed, raise the last error
+    raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
 
 def setup_ricronus_and_directories(BOT_DIRECTORY):
     """Configura o ricronus e cria os diretórios necessários"""
-    wget_with_proxy_fallback(f"{BOT_DIRECTORY}r_rewards.conf", f"{BASEDIR}/ricronus.conf")
+    curl_with_proxy_fallback(f"{BOT_DIRECTORY}r_rewards.conf", f"{BASEDIR}/ricronus.conf")
     for letter in ["A", "B", "C", "D", "E"]:
         sessions_dir = os.path.join(BASEDIR, f"colabtools_{letter}", "dist", "browser", "sessions")
         os.makedirs(sessions_dir, exist_ok=True)
@@ -413,7 +439,7 @@ def download_and_extract_bot_A(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        wget_with_proxy_fallback(download_url, zip_file_name)
+        curl_with_proxy_fallback(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -432,7 +458,7 @@ def download_and_extract_bot_A(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            wget_with_proxy_fallback(config_json_url, "src/config.json")
+            curl_with_proxy_fallback(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -471,7 +497,7 @@ def download_and_extract_bot_B(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        wget_with_proxy_fallback(download_url, zip_file_name)
+        curl_with_proxy_fallback(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -490,7 +516,7 @@ def download_and_extract_bot_B(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            wget_with_proxy_fallback(config_json_url, "src/config.json")
+            curl_with_proxy_fallback(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -529,7 +555,7 @@ def download_and_extract_bot_C(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        wget_with_proxy_fallback(download_url, zip_file_name)
+        curl_with_proxy_fallback(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -548,7 +574,7 @@ def download_and_extract_bot_C(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            wget_with_proxy_fallback(config_json_url, "src/config.json")
+            curl_with_proxy_fallback(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -587,7 +613,7 @@ def download_and_extract_bot_D(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        wget_with_proxy_fallback(download_url, zip_file_name)
+        curl_with_proxy_fallback(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -606,7 +632,7 @@ def download_and_extract_bot_D(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            wget_with_proxy_fallback(config_json_url, "src/config.json")
+            curl_with_proxy_fallback(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -645,7 +671,7 @@ def download_and_extract_bot_E(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         download_url = f"{BOT_DIRECTORY}{BOT_ACCOUNT}_{bot_id}.zip"
 
         print(f"Baixando {download_url} para {zip_file_name}...")
-        wget_with_proxy_fallback(download_url, zip_file_name)
+        curl_with_proxy_fallback(download_url, zip_file_name)
 
         print(f"Extraindo {zip_file_name}...")
         subprocess.run(f"unzip -o {zip_file_name}", shell=True, check=True)
@@ -664,7 +690,7 @@ def download_and_extract_bot_E(BOT_DIRECTORY, BOT_ACCOUNT, CONFIG_MODE):
         if CONFIG_MODE != "ZIP":
             config_json_url = f"https://drive.kingvegeta.workers.dev/1:/Files/rewanced/_{CONFIG_MODE}.json"
             print(f"Baixando config.json ({CONFIG_MODE}) de {config_json_url}...")
-            wget_with_proxy_fallback(config_json_url, "src/config.json")
+            curl_with_proxy_fallback(config_json_url, "src/config.json")
             print(f"Atualizando IDCLUSTER em src/config.json para _{BOT_ACCOUNT}...")
             subprocess.run(f"sed -i 's/_IDCLUSTER/_{BOT_ACCOUNT}/g' src/config.json", shell=True, check=True)
         else:
@@ -729,12 +755,24 @@ def mount_rewards_drive():
     
 def copy_rewards_drive(BOT_ACCOUNT):
     target = f"{BASEDIR}/colabtools_shared/sessions/_{BOT_ACCOUNT}"
-    
-    print(f"🚀 Iniciando cópia de rewards:Rewards para {target}...")
-    subprocess.run(
-        f"ricronus --config {BASEDIR}/ricronus.conf copy rewards:Rewards/_\"{BOT_ACCOUNT}\" \"{target}\" --transfers 10 --fast-list",
-        shell=True
-    )
+
+    print(f"🚀 Iniciando cópia de rewards:Rewards/_\"{BOT_ACCOUNT}\" para {target}...")
+    try:
+        result = subprocess.run(
+            f"ricronus --config {BASEDIR}/ricronus.conf copy rewards:Rewards/_\"{BOT_ACCOUNT}\" \"{target}\" --transfers 10 --fast-list",
+            shell=True,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print("Cópia concluída com sucesso.")
+    except subprocess.CalledProcessError as e:
+        # Se o erro for porque a pasta não existe na nuvem, cria localmente
+        if "directory not found" in (e.stderr or "").lower() or "not found" in (e.stderr or "").lower():
+            print(f"⚠️ Pasta rewards:Rewards/_{BOT_ACCOUNT} não existe na nuvem. Criando localmente {target} ...")
+            os.makedirs(target, exist_ok=True)
+        else:
+            print(f"⚠️ Erro ao copiar rewards:Rewards para {target}: {e}\nSaída: {e.output}\nErro: {e.stderr}")
 
     for letter in ['A', 'B', 'C', 'D', 'E']:
         symlink_path = f"{BASEDIR}/colabtools_{letter}/dist/browser/sessions/_{BOT_ACCOUNT}"
