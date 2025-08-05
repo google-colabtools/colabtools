@@ -29,18 +29,18 @@ fi
 echo "Squid is ready"
 
 # Show public IP and country via proxy
-echo "Testing public IP and country via Squid proxy..."
+echo "Testing public IP and country via Squid"
 PROXY_IP=$(curl -s --proxy http://127.0.0.1:3128 https://ipinfo.io/ip)
 PROXY_COUNTRY=$(curl -s --proxy http://127.0.0.1:3128 https://ipinfo.io/country)
 if [ -z "$PROXY_IP" ]; then
-    echo "Proxy public IP: (not detected)"
+    echo "Public IP: (not detected)"
 else
-    echo "Proxy public IP: $PROXY_IP"
+    echo "Public IP: $PROXY_IP"
 fi
 if [ -z "$PROXY_COUNTRY" ]; then
-    echo "Proxy country: (not detected)"
+    echo "Public Country: (not detected)"
 else
-    echo "Proxy country: $PROXY_COUNTRY"
+    echo "Public Country: $PROXY_COUNTRY"
 fi
 
 # Setup runtime directory
