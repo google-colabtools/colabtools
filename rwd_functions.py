@@ -58,7 +58,17 @@ def get_sheets_service():
             )
         elif SERVICE_ACCOUNT_URL:
             print("Arquivo local não encontrado. Baixando serviceaccount.json da URL...")
-            resp = requests.get(SERVICE_ACCOUNT_URL)
+            # Usar DNS personalizado para resolver o domínio
+            try:
+                parsed = urlparse(SERVICE_ACCOUNT_URL)
+                ip = resolve_domain(parsed.hostname, CUSTOM_DNS_SERVERS)
+                url_with_ip = SERVICE_ACCOUNT_URL.replace(parsed.hostname, ip)
+                headers = {"Host": parsed.hostname}
+                print(f"🌐 Usando DNS personalizado para acessar: {parsed.hostname} -> {ip}")
+                resp = requests.get(url_with_ip, headers=headers, verify=False)
+            except Exception as dns_error:
+                print(f"⚠️ Falha ao usar DNS personalizado: {dns_error}. Tentando conexão direta...")
+                resp = requests.get(SERVICE_ACCOUNT_URL)
             resp.raise_for_status()
             info = resp.json()
             creds = service_account.Credentials.from_service_account_info(
@@ -387,8 +397,10 @@ def curl_with_proxy_fallback(url, output, host="127.0.0.1", port=3128, timeout=2
             # Try with proxy first if available
             try:
                 with socket.create_connection((host, port), timeout=timeout):
+                    print(f"🔗 Usando bypass para download: {url}")
                     cmd = f'curl --connect-timeout 30 --max-time 60 --retry 3 -o "{output}" "{url}" --proxy {host}:{port}'
             except Exception:
+                print(f"🌐 Usando conexão direta para: {url}")
                 cmd = f'curl --connect-timeout 30 --max-time 60 --retry 3 -o "{output}" "{url}"'
             
             # Execute the command
