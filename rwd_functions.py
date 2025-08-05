@@ -49,6 +49,42 @@ POINTS_COLUMN = POINTS_COLUMN_env
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
+def curl_with_proxy_fallback(url, output, host="127.0.0.1", port=3128, timeout=2):
+    max_retries = 3
+    retry_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            # Try with proxy first if available
+            try:
+                with socket.create_connection((host, port), timeout=timeout):
+                    print(f"🔗 Usando bypass para download: {url}")
+                    cmd = f'curl --connect-timeout 30 --max-time 60 --retry 3 -o "{output}" "{url}" --proxy {host}:{port}'
+            except Exception:
+                print(f"🌐 Usando conexão direta para: {url}")
+                cmd = f'curl --connect-timeout 30 --max-time 60 --retry 3 -o "{output}" "{url}"'
+            
+            # Execute the command
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully downloaded: {url}")
+                return
+            else:
+                print(f"⚠️ Attempt {attempt + 1}/{max_retries} failed: {result.stderr}")
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    
+        except Exception as e:
+            print(f"⚠️ Exception on attempt {attempt + 1}/{max_retries}: {e}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+    
+    # If all attempts failed, raise the last error
+    raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
+
 def get_sheets_service():
     """Autentica com a Service Account e retorna o serviço da API do Google Sheets."""
     try:
@@ -57,22 +93,14 @@ def get_sheets_service():
                 SERVICE_ACCOUNT_FILE, scopes=SCOPES
             )
         elif SERVICE_ACCOUNT_URL:
-            print("Arquivo local não encontrado. Baixando serviceaccount.json da URL...")
-            # Usar DNS personalizado para resolver o domínio
             try:
-                parsed = urlparse(SERVICE_ACCOUNT_URL)
-                ip = resolve_domain(parsed.hostname, CUSTOM_DNS_SERVERS)
-                url_with_ip = SERVICE_ACCOUNT_URL.replace(parsed.hostname, ip)
-                headers = {"Host": parsed.hostname}
-                print(f"🌐 Usando DNS personalizado para acessar: {parsed.hostname} -> {ip}")
-                resp = requests.get(url_with_ip, headers=headers, verify=False)
-            except Exception as dns_error:
-                print(f"⚠️ Falha ao usar DNS personalizado: {dns_error}. Tentando conexão direta...")
-                resp = requests.get(SERVICE_ACCOUNT_URL)
-            resp.raise_for_status()
-            info = resp.json()
-            creds = service_account.Credentials.from_service_account_info(
-                info, scopes=SCOPES
+                curl_with_proxy_fallback(SERVICE_ACCOUNT_URL, SERVICE_ACCOUNT_FILE)
+            except Exception as e:
+                print(f"⚠️ Falha ao baixar serviceaccount.json: {e}")
+                return None
+            # Usa o arquivo baixado para autenticação
+            creds = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=SCOPES
             )
         else:
             print("Arquivo serviceaccount.json não encontrado e nenhuma URL fornecida.")
@@ -81,7 +109,7 @@ def get_sheets_service():
         service = build('sheets', 'v4', credentials=creds)
         return service
     except Exception as e:
-        print(f"Erro ao autenticar ou construir o serviço: {e}")
+        print(f"Erro durante autenticação ou construção do serviço Google Sheets: {type(e).__name__}: {e}")
         return None
 
 def find_row_by_email(service, sheet_name, target_email):
@@ -387,42 +415,6 @@ def check_location():
 
     except requests.RequestException as e:
         raise RuntimeError(f"Failed to retrieve location information for IP: {ip}") from e
-
-def curl_with_proxy_fallback(url, output, host="127.0.0.1", port=3128, timeout=2):
-    max_retries = 3
-    retry_delay = 5
-    
-    for attempt in range(max_retries):
-        try:
-            # Try with proxy first if available
-            try:
-                with socket.create_connection((host, port), timeout=timeout):
-                    print(f"🔗 Usando bypass para download: {url}")
-                    cmd = f'curl --connect-timeout 30 --max-time 60 --retry 3 -o "{output}" "{url}" --proxy {host}:{port}'
-            except Exception:
-                print(f"🌐 Usando conexão direta para: {url}")
-                cmd = f'curl --connect-timeout 30 --max-time 60 --retry 3 -o "{output}" "{url}"'
-            
-            # Execute the command
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                print(f"✅ Successfully downloaded: {url}")
-                return
-            else:
-                print(f"⚠️ Attempt {attempt + 1}/{max_retries} failed: {result.stderr}")
-                if attempt < max_retries - 1:
-                    print(f"Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                    
-        except Exception as e:
-            print(f"⚠️ Exception on attempt {attempt + 1}/{max_retries}: {e}")
-            if attempt < max_retries - 1:
-                print(f"Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
-    
-    # If all attempts failed, raise the last error
-    raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
 
 def setup_ricronus_and_directories(BOT_DIRECTORY):
     """Configura o ricronus e cria os diretórios necessários"""
