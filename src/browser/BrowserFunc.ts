@@ -116,7 +116,7 @@ export default class BrowserFunc {
                 
                 // Wait for main page content to load (#more-activities) but don't fail hard.
                 // After 3 failed attempts we skip waiting for this element entirely to proceed without 'more'.
-                if (attempt <= 3) {
+                if (attempt <= 1) {
                     try {
                         await this.bot.homePage.waitForSelector('#more-activities', { timeout: 10000 })
                     } catch (e: any) {
