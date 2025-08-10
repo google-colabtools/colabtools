@@ -114,8 +114,18 @@ export default class BrowserFunc {
                 // Increase timeout
                 await this.bot.homePage.reload({ waitUntil: 'networkidle', timeout: 90000 })
                 
-                // Wait for main page content to load
-                await this.bot.homePage.waitForSelector('#more-activities', { timeout: 10000 })
+                // Wait for main page content to load (#more-activities) but don't fail hard.
+                // After 3 failed attempts we skip waiting for this element entirely to proceed without 'more'.
+                if (attempt <= 3) {
+                    try {
+                        await this.bot.homePage.waitForSelector('#more-activities', { timeout: 10000 })
+                    } catch (e: any) {
+                        this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `Attempt ${attempt}: '#more-activities' not found (timeout). Will continue without it.`, 'warn')
+                    }
+                } else {
+                    // Skipping wait for '#more-activities' on later attempts
+                    this.bot.log(this.bot.isMobile, 'DASHBOARD-DATA', `Skipping wait for '#more-activities' on attempt ${attempt}.`, 'warn')
+                }
                 
                 // Extra wait to ensure scripts are fully loaded
                 await this.bot.utils.wait(10000);
