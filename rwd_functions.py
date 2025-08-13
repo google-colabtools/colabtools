@@ -975,8 +975,8 @@ def start_bots(discord_webhook_url_br, discord_webhook_url_us, *bots_to_run):
             # Se for uma reinicialização, não aplicar o delay inicial
             if not is_restart:
                 # Delay progressivo: 0 seg para o primeiro, 30 seg para o segundo, 60 seg para o terceiro, etc.
-                delay = position * 30  # 30 segundos multiplicado pela posição
-                
+                delay = position * 20  # 20 segundos multiplicado pela posição
+
                 if delay > 0:
                     print_colored('Sistema', f"Bot {bot_letter} iniciará em {delay} segundos...")
                     time.sleep(delay)
